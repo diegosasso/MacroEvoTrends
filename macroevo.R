@@ -7,7 +7,7 @@ library(phytools)
 ##--------------------------------------------------------------------------------##
 
 # Load data.
-hym_tree <- readRDS("data/hym_tree.RDS")
+hym_tree <- readRDS("hym_tree.RDS")
 
 # Paint a clade (Proctotrupomorpha) with given macroevolutionary regime. 
 hym_tree_reg <- paintSubTree(hym_tree, node = 86, state = "Q2", anc.state = "Q1",stem = T)
