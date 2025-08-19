@@ -31,12 +31,12 @@ plot(tree)
 edgelabels()
 
 # e.g., 2
-focal_edge <- 2
+focal_edge <- 1
 Q_base <- initQ(c(0, 1), c(.01,.01))
 Q_jump <- initQ(c(0, 1), c(10, 1e-10))
 Q_base
 Q_jump
 
-simDirectional(tree, focal_edge, Q_base, Q_jump, nsim=20)
-
+chars <- simDirectional(tree, focal_edge, Q_base, Q_jump, nsim=20)
+chars[,2]
 
