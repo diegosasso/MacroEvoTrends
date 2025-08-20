@@ -12,12 +12,13 @@ stm_amalg_null <- readRDS("stm_amalg_null.RDS")
 stm_merg <- merge_tree_cat_list(stm_amalg)
 stm_merg_null <- merge_tree_cat_list(stm_amalg_null)
 
-# Get max Hamming distance per branch.
+# Get total Hamming distance per branch.
 # Data.
 br_hm_dist <- vector(mode = "list", length = length(stm_merg))
 for (i in 1:length(stm_merg)) {
-  
-  br_hm <- sapply(stm_merg[[i]]$maps, function(x) stringdist::stringdist(first(names(x)), last(names(x)), method = "hamming") )
+
+  br_hm <- sapply(stm_merg[[i]]$maps, function(x) sum(stringdist::stringdist(tail(names(x), -1), head(names(x), -1), method = "hamming")) )
+  #br_hm <- sapply(stm_merg[[i]]$maps, function(x) stringdist::stringdist(first(names(x)), last(names(x)), method = "hamming") )
   br_hm[is.infinite(br_hm)] <- 0
   br_hm_dist[[i]] <- br_hm
   
@@ -27,7 +28,8 @@ for (i in 1:length(stm_merg)) {
 br_hm_dist_null <- vector(mode = "list", length = length(stm_merg_null))
 for (i in 1:length(stm_merg_null)) {
   
-  br_hm_null <- sapply(stm_merg_null[[i]]$maps, function(x) stringdist::stringdist(first(names(x)), last(names(x)), method = "hamming") )
+  br_hm_null <- sapply(stm_merg_null[[i]]$maps, function(x) sum(stringdist::stringdist(tail(names(x), -1), head(names(x), -1), method = "hamming")) )
+  #br_hm_null <- sapply(stm_merg_null[[i]]$maps, function(x) stringdist::stringdist(first(names(x)), last(names(x)), method = "hamming") )
   br_hm_null[is.infinite(br_hm_null)] <- 0
   br_hm_dist_null[[i]] <- br_hm_null
   
