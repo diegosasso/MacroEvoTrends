@@ -33,6 +33,34 @@ for (i in 1:length(stm_merg_null)) {
   
 }
 
+#-------------
+diff.hm <- mapply(x = br_hm_dist, y = br_hm_dist_null, function(x, y) x-y)
+X <- diff.hm[1,]
+hist(X)
+
+x.e <- sapply(br_hm_dist, function(x) x[1]) 
+x.n <- sapply(br_hm_dist_null, function(x) x[1]) 
+hist(x.e)
+hist(x.n, col=rgb(0,0,1,0.5), add=TRUE)
+
+hist(x.e - x.n)
+
+# pvalue
+p1 <- sum((x.e - x.n) <= 0) / 100
+p2 <- sum((x.e - x.n) >= 0) / 100
+min(p1,p2)
+
+pp1 <- apply(diff.hm, 1, function(x) sum(x <= 0)/100 )
+pp2 <- apply(diff.hm, 1, function(x) sum(x >= 0)/100 )
+pp.vals <- apply(cbind(pp1,pp2), 1, min)
+which(pp.vals < 0.05)
+pp.vals[5]
+
+# S statistics
+(mean(x.e) - mean(x.n))/sd(x.e)
+
+#-----------------
+
 # Get number of branches.
 n_br = length(stm_amalg[[1]]$edge.length)
 
@@ -75,6 +103,7 @@ save(br_dist_null, br_dist_boot_null, file = "boots_null.RDA")
 # Calculate differences between Data and Null.
 pval <- numeric()
 h_diff <- vector(mode = "list", length = dim(br_dist_boot)[2])
+i=1
 for (i in 1:dim(br_dist_boot)[2]) {
   
   h_diff[[i]] <- br_dist_boot[,i] - br_dist_boot_null[,i]

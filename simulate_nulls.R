@@ -9,7 +9,7 @@ load("test.RDA")
 
 # Import tree.
 tree <- readRDS("tree_test.RDS")
-
+plot(tree)
 # Set some parameters.
 nsim = 20
 nstm = 100
@@ -19,6 +19,7 @@ res = 500
 smaps <- setNames(vector(mode = "list", length = nsim), paste0("C",1:nsim))
 
 # Loop over all traits.
+i=1
 for (i in 1:nsim) {
   
   cat(paste0("\n", "Working on: ", "C", i, ": ", Sys.time(), "\n"))

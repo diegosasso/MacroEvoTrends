@@ -12,8 +12,9 @@ source('R/utils.R')
 # Import tree.
 tree <- readRDS("tree_test.RDS")
 #tree <- readRDS("hym_tree.RDS")
+plot(tree)
 
-# Simulate tree.
+# Simtrees# Simulate tree.
 #tree <- pbtree(n = 100, scale = 1, b = 1, d = 0)
 plot.phylo(tree, cex = 0.5)
 nodelabels(frame = "none", col = "red", cex = 0.5)
