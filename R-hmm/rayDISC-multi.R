@@ -1,8 +1,19 @@
 #---------
 # cannot use ?
 # check chars to be non invariant
-#
+# in PARAMO, do not use root yang
 #----------
+
+library(expm)
+library(ape)
+library(phytools)
+library(corHMM)
+library(rphenoscate)
+library(ontophylo)
+library(dplyr)
+source('R-hmm/utils-hmm.R')
+source('R-hmm/dev.rayDisc-multi.R')
+
 tree <- readRDS("tree_test.RDS")
 char <- readRDS('RDS/char.rds')
 
@@ -12,29 +23,29 @@ data <- cbind(rownames(char), char)
 str(data)
 Nchar = 2
 
-phy 
+phy
 data
-#ntraits = 1 
+#ntraits = 1
 #charnum = 1
 #rate.mat = NULL
-rate.mat = initQ(c(0, 1), c(1, 2), diag.as = NA)
-#model = c("ER", "SYM", "ARD"), 
+rate.mat = initQ(c(0, 1), c(1, 1), diag.as = NA)
+#model = c("ER", "SYM", "ARD"),
 node.states = c("none")
 state.recon = c("subsequently")
 lewis.asc.bias = FALSE
 #p = NULL
 p=c(0.1, 0.1)
-root.p = "yang"
-ip = NULL 
-lb = 1e-09 
+root.p = "flat"
+ip = NULL
+lb = 1e-09
 ub = 100
-verbose = TRUE 
+verbose = TRUE
 diagn = FALSE
 
 
-rayDISC_multi <- function (phy, data, ntraits = 1, charnum = 1, rate.mat = NULL, 
-          model = c("ER", "SYM", "ARD"), node.states = c("joint", "marginal", "scaled", "none"), state.recon = c("subsequently"), 
-          lewis.asc.bias = FALSE, p = NULL, root.p = "yang", ip = NULL, 
+rayDISC_multi <- function (phy, data, Nchar, rate.mat = NULL, 
+          node.states = "none", state.recon = c("subsequently"), 
+          lewis.asc.bias = FALSE, p = NULL, root.p = "flat", ip = NULL, 
           lb = 1e-09, ub = 100, verbose = TRUE, diagn = FALSE) 
 {
   if (is.null(node.states)) {
@@ -130,10 +141,12 @@ rayDISC_multi <- function (phy, data, ntraits = 1, charnum = 1, rate.mat = NULL,
   char_env_summary(char_env)
   #ls(char_env)
   #char_env$char2
+  #
   #-- this is needed for model.set.final <- corHMM:::rate.cat.set.rayDISC
-  data.sort <- data.frame(data[, charnum + 1], data[, charnum + 1], row.names = data[, 1])
+  data.sort <- data.frame(data[, 1 + 1], data[, 1 + 1], row.names = data[, 1])
   data.sort <- data.sort[phy$tip.label, ]
   #-------
+  #
   # data.sort <- data.frame(data[, charnum + 1], data[, charnum + 1], row.names = data[, 1])
   # data.sort <- data.sort[phy$tip.label, ]
   # data.rayDISC <- data.frame(sp = rownames(data.sort), d = data.sort[,1])
@@ -175,15 +188,16 @@ rayDISC_multi <- function (phy, data, ntraits = 1, charnum = 1, rate.mat = NULL,
   ip = ip
   # model.set.final <- corHMM:::rate.cat.set.rayDISC(phy = phy, data = data.sort, 
   #                                         model = model, charnum = charnum)
-  model.set.final <- corHMM:::rate.cat.set.rayDISC(phy = phy, data = data.sort, 
-                                                   model = 'ER', charnum = 1)
-  # if (!is.null(rate.mat)) {
-  #   rate <- rate.mat
-  #   model.set.final$np <- max(rate, na.rm = TRUE)
-  #   rate[is.na(rate)] = max(rate, na.rm = TRUE) + 1
-  #   model.set.final$rate <- rate
-  #   model.set.final$index.matrix <- rate.mat
-  # }
+  # model.set.final <-corHMM:::rate.cat.set.rayDISC(phy = phy, data = data.sort, model = 'ARD', charnum = 1)
+  # model.set.final$rate
+  model.set.final <- corHMM:::rate.cat.set.rayDISC(phy = phy, data = data.sort, model = 'ER', charnum = 1)
+  if (!is.null(rate.mat)) {
+    rate <- rate.mat
+    model.set.final$np <- max(rate, na.rm = TRUE)
+    rate[is.na(rate)] = max(rate, na.rm = TRUE) + 1
+    model.set.final$rate <- rate
+    model.set.final$index.matrix <- rate.mat
+  }
   lower = rep(lb, model.set.final$np)
   upper = rep(ub, model.set.final$np)
   opts <- list(algorithm = "NLOPT_LN_SBPLX", maxeval = "1000000", 
@@ -201,36 +215,13 @@ rayDISC_multi <- function (phy, data, ntraits = 1, charnum = 1, rate.mat = NULL,
       #                              phy = phy, liks = model.set.final$liks, Q = model.set.final$Q, 
       #                              rate = model.set.final$rate, root.p = root.p, 
       #                              lewis.asc.bias = lewis.asc.bias)
-      out$objective <- dev.raydisc(log(out$solution), 
-                                   phy = phy, liks = char_env, Q = model.set.final$Q, 
-                                   rate = model.set.final$rate, root.p = root.p, 
-                                   lewis.asc.bias = lewis.asc.bias)
+      out$objective <- dev.raydisc_multi(
+                                  log(out$solution), 
+                                  phy = phy, char_env = char_env, Q = model.set.final$Q, 
+                                  rate = model.set.final$rate, root.p = root.p, 
+                                  lewis.asc.bias = lewis.asc.bias)
       loglik <- -out$objective
     }
-    # else {
-    #   if (lewis.asc.bias == TRUE) {
-    #     loglik.num <- ancRECON(phy = phy, data = data.rayDISC, 
-    #                            p = p, rate.cat = NULL, rate.mat = rate.mat, 
-    #                            ntraits = ntraits, method = node.states, model = model, 
-    #                            root.p = root.p, get.likelihood = TRUE)
-    #     phy.dummy <- phy
-    #     data.dummy <- cbind(phy$tip.label, 0)
-    #     phy.dummy$node.label <- rep(1, length(phy.dummy$node.label))
-    #     loglik.dummy <- ancRECON(phy = phy, data = data.rayDISC, 
-    #                              p = p, rate.cat = NULL, rate.mat = rate.mat, 
-    #                              ntraits = ntraits, method = node.states, model = model, 
-    #                              root.p = root.p, get.likelihood = TRUE)
-    #     loglik <- (loglik.num - log(1 - exp(loglik.dummy)))
-    #     loglik <- out$objective
-    #   }
-    #   else {
-    #     out$objective <- ancRECON(phy = phy, data = data.rayDISC, 
-    #                               p = p, rate.cat = NULL, rate.mat = rate.mat, 
-    #                               ntraits = ntraits, method = node.states, model = model, 
-    #                               root.p = root.p, get.likelihood = TRUE)
-    #     loglik <- out$objective
-    #   }
-    # }
     est.pars <- out$solution
   }
   else {
@@ -238,32 +229,37 @@ rayDISC_multi <- function (phy, data, ntraits = 1, charnum = 1, rate.mat = NULL,
       if (verbose == TRUE) {
         cat("Initializing...", "\n")
       }
-      model.set.init <- rate.cat.set.rayDISC(phy = phy, 
-                                             data = data.sort, model = "ER", charnum = charnum)
-      opts <- list(algorithm = "NLOPT_LN_SBPLX", maxeval = "1000000", 
-                   ftol_rel = .Machine$double.eps^0.5)
-      taxa.missing.data.drop <- which(is.na(data.sort[, 
-                                                      1]))
-      if (length(taxa.missing.data.drop) != 0) {
-        tip.labs <- names(taxa.missing.data.drop)
-        dat <- as.matrix(data.sort)
-        dat.red <- dat[-taxa.missing.data.drop, ]
-        phy.red <- drop.tip(phy, taxa.missing.data.drop)
-        dat.red <- phyDat(dat.red, type = "USER", levels = sort(unique(c(dat))))
-        par.score <- parsimony(phy.red, dat.red, method = "fitch")/2
+      model.set.init <- corHMM:::rate.cat.set.rayDISC(phy = phy, data = data.sort, model = "ER", charnum = 1)
+      opts <- list(algorithm = "NLOPT_LN_SBPLX", maxeval = "1000000", ftol_rel = .Machine$double.eps^0.5)
+      
+      par.score_vec <- c()
+      for (charnum in 1:Nchar){
+        data.sort <- data.frame(data[, charnum + 1], data[, charnum + 1], row.names = data[, 1])
+        data.sort <- data.sort[phy$tip.label, ]
+        taxa.missing.data.drop <- which(is.na(data.sort[, 1]))
+        if (length(taxa.missing.data.drop) != 0) {
+          tip.labs <- names(taxa.missing.data.drop)
+          dat <- as.matrix(data.sort)
+          dat.red <- dat[-taxa.missing.data.drop, ]
+          phy.red <- drop.tip(phy, taxa.missing.data.drop)
+          dat.red <- phangorn::phyDat(dat.red, type = "USER", levels = sort(unique(c(dat))))
+          par.score <- phangorn::parsimony(phy.red, dat.red, method = "fitch")/2
+          par.score_vec <- c(par.score_vec, par.score)
+        }else {
+          dat <- as.matrix(data.sort)
+          dat <- phangorn::phyDat(dat, type = "USER", levels = sort(unique(c(dat))))
+          phy.tmp <- ape::multi2di(phy)
+          par.score <- phangorn::parsimony(phy.tmp, dat, method = "fitch")/2
+          par.score_vec <- c(par.score_vec, par.score)
+        }
       }
-      else {
-        dat <- as.matrix(data.sort)
-        dat <- phyDat(dat, type = "USER", levels = sort(unique(c(dat))))
-        phy.tmp <- multi2di(phy)
-        par.score <- parsimony(phy.tmp, dat, method = "fitch")/2
-      }
+
       tl <- sum(phy$edge.length)
-      mean.change = par.score/tl
+      # mean.change = par.score/tl
+      mean.change = sum(par.score_vec)/tl
       if (mean.change == 0) {
         ip = 0.01
-      }
-      else {
+      }else {
         ip <- rexp(1, 1/mean.change)
       }
       if (log(ip) < lb || log(ip) > ub) {
@@ -272,9 +268,14 @@ rayDISC_multi <- function (phy, data, ntraits = 1, charnum = 1, rate.mat = NULL,
       lower.init = rep(lb, model.set.init$np)
       upper.init = rep(ub, model.set.init$np)
       phy <- reorder(phy, "pruningwise")
+      # init = nloptr(x0 = rep(log(ip), length.out = model.set.init$np), 
+      #               eval_f = dev.raydisc, lb = lower.init, ub = upper.init, 
+      #               opts = opts, phy = phy, liks = model.set.init$liks, 
+      #               Q = model.set.init$Q, rate = model.set.init$rate, 
+      #               root.p = root.p, lewis.asc.bias = lewis.asc.bias)
       init = nloptr(x0 = rep(log(ip), length.out = model.set.init$np), 
-                    eval_f = dev.raydisc, lb = lower.init, ub = upper.init, 
-                    opts = opts, phy = phy, liks = model.set.init$liks, 
+                    eval_f = dev.raydisc_multi, lb = lower.init, ub = upper.init, 
+                    opts = opts, phy = phy, char_env=char_env, 
                     Q = model.set.init$Q, rate = model.set.init$rate, 
                     root.p = root.p, lewis.asc.bias = lewis.asc.bias)
       if (verbose == TRUE) {
@@ -285,50 +286,50 @@ rayDISC_multi <- function (phy, data, ntraits = 1, charnum = 1, rate.mat = NULL,
       upper = rep(ub, model.set.final$np)
       if (state.recon == "subsequently") {
         out <- nloptr(x0 = rep(init$solution, length.out = model.set.final$np), 
-                      eval_f = dev.raydisc, lb = lower, ub = upper, 
-                      opts = opts, phy = phy, liks = model.set.final$liks, 
+                      eval_f = dev.raydisc_multi, lb = lower, ub = upper, 
+                      opts = opts, phy = phy, char_env=char_env, 
                       Q = model.set.final$Q, rate = model.set.final$rate, 
                       root.p = root.p, lewis.asc.bias = lewis.asc.bias)
       }
-      else {
-        out <- nloptr(x0 = rep(init$solution, length.out = model.set.final$np), 
-                      eval_f = dev.raydisc.rates.and.states, lb = lower, 
-                      ub = upper, opts = opts, phy = phy, data = data, 
-                      hrm = FALSE, rate.cat = NULL, rate.mat = rate.mat, 
-                      ntraits = ntraits, method = node.states, model = model, 
-                      charnum = charnum, root.p = root.p, lewis.asc.bias = lewis.asc.bias, 
-                      get.likelihood = TRUE)
-      }
+      # else {
+      #   out <- nloptr(x0 = rep(init$solution, length.out = model.set.final$np), 
+      #                 eval_f = dev.raydisc.rates.and.states, lb = lower, 
+      #                 ub = upper, opts = opts, phy = phy, data = data, 
+      #                 hrm = FALSE, rate.cat = NULL, rate.mat = rate.mat, 
+      #                 ntraits = ntraits, method = node.states, model = model, 
+      #                 charnum = charnum, root.p = root.p, lewis.asc.bias = lewis.asc.bias, 
+      #                 get.likelihood = TRUE)
+      # }
       loglik <- -out$objective
       est.pars <- exp(out$solution)
-    }
-    else {
+    #--------- ip is givem
+    } else {
       phy <- reorder(phy, "pruningwise")
       if (verbose == TRUE) {
-        cat("Beginning subplex optimization routine -- Starting value(s):", 
+        cat("Beginning subplex optimization routine -- Starting value(s):",
             ip, "\n")
       }
-      opts <- list(algorithm = "NLOPT_LN_SBPLX", maxeval = "1000000", 
+      opts <- list(algorithm = "NLOPT_LN_SBPLX", maxeval = "1000000",
                    ftol_rel = .Machine$double.eps^0.5)
       if (state.recon == "subsequently") {
-        if (!length(ip) == model.set.final$np) 
+        if (!length(ip) == model.set.final$np)
           stop(" Length of starting state vector does not match model parameters. ")
-        out <- nloptr(x0 = log(ip), eval_f = dev.raydisc, 
-                      lb = lower, ub = upper, opts = opts, phy = phy, 
-                      liks = model.set.final$liks, Q = model.set.final$Q, 
-                      rate = model.set.final$rate, root.p = root.p, 
+        out <- nloptr(x0 = log(ip), eval_f = dev.raydisc_multi,
+                      lb = lower, ub = upper, opts = opts, phy = phy,
+                      char_env=char_env, Q = model.set.final$Q,
+                      rate = model.set.final$rate, root.p = root.p,
                       lewis.asc.bias = lewis.asc.bias)
       }
-      else {
-        if (!length(ip) == model.set.final$np) 
-          stop(" Length of starting state vector does not match model parameters. ")
-        out <- nloptr(x0 = log(ip), eval_f = dev.raydisc.rates.and.states, 
-                      lb = lower, ub = upper, opts = opts, phy = phy, 
-                      data = data, hrm = FALSE, rate.cat = NULL, 
-                      rate.mat = rate.mat, ntraits = ntraits, method = node.states, 
-                      model = model, charnum = charnum, root.p = root.p, 
-                      lewis.asc.bias = lewis.asc.bias, get.likelihood = TRUE)
-      }
+      # else {
+      #   if (!length(ip) == model.set.final$np)
+      #     stop(" Length of starting state vector does not match model parameters. ")
+      #   out <- nloptr(x0 = log(ip), eval_f = dev.raydisc.rates.and.states,
+      #                 lb = lower, ub = upper, opts = opts, phy = phy,
+      #                 data = data, hrm = FALSE, rate.cat = NULL,
+      #                 rate.mat = rate.mat, ntraits = ntraits, method = node.states,
+      #                 model = model, charnum = charnum, root.p = root.p,
+      #                 lewis.asc.bias = lewis.asc.bias, get.likelihood = TRUE)
+      # }
       loglik <- -out$objective
       est.pars <- exp(out$solution)
     }
@@ -344,41 +345,41 @@ rayDISC_multi <- function (phy, data, ntraits = 1, charnum = 1, rate.mat = NULL,
     lik.anc$lik.anc.states <- "You turned this feature off. Try plugging into ancRECON function directly."
     tip.states <- lik.anc$lik.tip.states
   }
-  else {
-    data.rayDISC[is.na(data.rayDISC)] <- "?"
-    if (node.states == "marginal" || node.states == "scaled") {
-      lik.anc <- ancRECON(phy, data.rayDISC, est.pars, 
-                          rate.cat = NULL, rate.mat = rate.mat, ntraits = ntraits, 
-                          method = node.states, model = model, root.p = root.p)
-      pr <- apply(lik.anc$lik.anc.states, 1, which.max)
-      phy$node.label <- pr
-      tip.states <- lik.anc$lik.tip.states
-    }
-    if (!state.recon == "given") {
-      if (node.states == "joint") {
-        lik.anc <- ancRECON(phy, data.rayDISC, est.pars, 
-                            rate.cat = NULL, rate.mat = rate.mat, ntraits = ntraits, 
-                            method = node.states, model = model, root.p = root.p)
-        phy$node.label <- lik.anc$lik.anc.states
-        tip.states <- lik.anc$lik.tip.states
-      }
-    }
-    else {
-      if (any(is.na(phy$node.label))) {
-        lik.anc <- ancRECON(phy, data.rayDISC, est.pars, 
-                            rate.cat = NULL, rate.mat = rate.mat, ntraits = ntraits, 
-                            method = node.states, model = model, root.p = root.p)
-        phy$node.label <- lik.anc$lik.anc.states
-        tip.states <- lik.anc$lik.tip.states
-      }
-      else {
-        lik.anc <- NULL
-        lik.anc$lik.anc.states <- phy$node.label
-        lik.anc$lik.tip.states <- data.sort[, 1]
-        tip.states <- lik.anc$lik.tip.states
-      }
-    }
-  }
+  # else {
+  #   data.rayDISC[is.na(data.rayDISC)] <- "?"
+  #   if (node.states == "marginal" || node.states == "scaled") {
+  #     lik.anc <- ancRECON(phy, data.rayDISC, est.pars, 
+  #                         rate.cat = NULL, rate.mat = rate.mat, ntraits = ntraits, 
+  #                         method = node.states, model = model, root.p = root.p)
+  #     pr <- apply(lik.anc$lik.anc.states, 1, which.max)
+  #     phy$node.label <- pr
+  #     tip.states <- lik.anc$lik.tip.states
+  #   }
+  #   if (!state.recon == "given") {
+  #     if (node.states == "joint") {
+  #       lik.anc <- ancRECON(phy, data.rayDISC, est.pars, 
+  #                           rate.cat = NULL, rate.mat = rate.mat, ntraits = ntraits, 
+  #                           method = node.states, model = model, root.p = root.p)
+  #       phy$node.label <- lik.anc$lik.anc.states
+  #       tip.states <- lik.anc$lik.tip.states
+  #     }
+  #   }
+  #   else {
+  #     if (any(is.na(phy$node.label))) {
+  #       lik.anc <- ancRECON(phy, data.rayDISC, est.pars, 
+  #                           rate.cat = NULL, rate.mat = rate.mat, ntraits = ntraits, 
+  #                           method = node.states, model = model, root.p = root.p)
+  #       phy$node.label <- lik.anc$lik.anc.states
+  #       tip.states <- lik.anc$lik.tip.states
+  #     }
+  #     else {
+  #       lik.anc <- NULL
+  #       lik.anc$lik.anc.states <- phy$node.label
+  #       lik.anc$lik.tip.states <- data.sort[, 1]
+  #       tip.states <- lik.anc$lik.tip.states
+  #     }
+  #   }
+  # }
   if (diagn == TRUE) {
     if (verbose == TRUE) {
       cat("Finished. Performing diagnostic tests.", "\n")
@@ -419,7 +420,7 @@ rayDISC_multi <- function (phy, data, ntraits = 1, charnum = 1, rate.mat = NULL,
              lewis.asc.bias = lewis.asc.bias, opts = opts, data = data, 
              phy = phy, states = lik.anc$lik.anc.states, tip.states = tip.states, 
              iterations = out$iterations, eigval = eigval, eigvect = eigvect, 
-             bound.hit = bound.hit, model = model, charnum = charnum, 
+             bound.hit = bound.hit, 
              lower = lb, upper = ub, par.vec = est.pars, root.p = root.p)
   if (!is.null(matching$message.data)) {
     obj$message.data <- matching$message.data

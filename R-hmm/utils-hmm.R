@@ -11,10 +11,11 @@ prepare_vectorized_chars <- function(data, phy, Nchar) {
     
     # Factorize using corHMM
     factored <- corHMM:::factorData(data.sort, charnum = charnum)
+    model.set.final <- corHMM:::rate.cat.set.rayDISC(phy = phy, data = data.sort, model = 'ER', charnum = 1)
     
     # Store in environment under character name
     char_name <- paste0("char", charnum)
-    assign(char_name, factored, envir = char_env)
+    assign(char_name, model.set.final$lik, envir = char_env)
   }
   
   return(char_env)
