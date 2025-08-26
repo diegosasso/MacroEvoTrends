@@ -9,6 +9,8 @@ library(ontophylo)
 # Import some functions.
 source('R/utils.R')
 
+#load("test.RDA")
+
 # Import tree.
 tree <- readRDS("tree_test.RDS")
 #tree <- readRDS("hym_tree.RDS")
