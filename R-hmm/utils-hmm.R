@@ -1,3 +1,38 @@
+# hmm.map <-  c("0", "1")
+# hmm.map <-  c("0&1&2", "3&4", "5")
+# char_invar_env <-make_invariant_env(data, phy, hmm.map)
+# char_invar_env[['char1']]
+# char_invar_env[['char2']]
+# char_invar_env[['char4']]
+make_invariant_env <- function(data, phy, hmm.map) {
+  # Merge hmm.map states into one label per character
+  hmm.map.merged <- paste0(hmm.map, collapse = "&")
+  
+  # Build invariant data matrix
+  data_invar <- cbind(data[, 1, drop = FALSE], matrix(rep(hmm.map, each = nrow(data)), 
+                                                      nrow = nrow(data)))
+  
+  # Set proper column names: taxa + invariant chars
+  colnames(data_invar) <- c(colnames(data)[1], paste0("char_", seq_along(hmm.map)))
+  
+  # Set the first taxon's invariant chars to the merged mapping
+  data_invar[1, 2:ncol(data_invar)] <- hmm.map.merged
+  
+  # Prepare vectorized invariant characters using your existing function
+  char_invar_env <- prepare_vectorized_chars(data_invar, phy, Nchar = length(hmm.map))
+  
+  # Update the first row of each invariant character likelihood matrix
+  char_names <- ls(char_invar_env)
+  for (ci in seq_along(char_names)) {
+    char <- char_names[ci]
+    char_invar_env[[char]][1, ] <- char_invar_env[[char]][2, ]
+  }
+  
+  return(char_invar_env)
+}
+
+
+
 prepare_vectorized_chars <- function(data, phy, Nchar) {
   # Create an environment for ultrafast constant-time access
   char_env <- new.env(hash = TRUE, parent = emptyenv())

@@ -13,37 +13,40 @@ library(ontophylo)
 library(dplyr)
 source('R-hmm/utils-hmm.R')
 source('R-hmm/dev.rayDisc-multi.R')
+# 
+# tree <- readRDS("tree_test.RDS")
+# char <- readRDS('RDS/char.rds')
+# 
+# phy <- tree
+# # data <- cbind(rownames(char), char[,1]+1)
+# data <- cbind(rownames(char), char)
+# str(data)
+# Nchar = 2
+# 
+# phy
+# data
+# #ntraits = 1
+# #charnum = 1
+# #rate.mat = NULL
+# rate.mat = initQ(c(0, 1), c(1, 1), diag.as = NA)
+# #model = c("ER", "SYM", "ARD"),
+# node.states = c("none")
+# state.recon = c("subsequently")
+# lewis.asc.bias = FALSE
+# #p = NULL
+# p=c(0.1, 0.1)
+# root.p = "flat"
+# ip = NULL
+# lb = 1e-09
+# ub = 100
+# verbose = TRUE
+# diagn = FALSE
+# hmm.map <-  c("0&1", "2&3")
 
-tree <- readRDS("tree_test.RDS")
-char <- readRDS('RDS/char.rds')
-
-phy <- tree
-# data <- cbind(rownames(char), char[,1]+1)
-data <- cbind(rownames(char), char)
-str(data)
-Nchar = 2
-
-phy
-data
-#ntraits = 1
-#charnum = 1
-#rate.mat = NULL
-rate.mat = initQ(c(0, 1), c(1, 1), diag.as = NA)
-#model = c("ER", "SYM", "ARD"),
-node.states = c("none")
-state.recon = c("subsequently")
-lewis.asc.bias = FALSE
-#p = NULL
-p=c(0.1, 0.1)
-root.p = "flat"
-ip = NULL
-lb = 1e-09
-ub = 100
-verbose = TRUE
-diagn = FALSE
 
 
-rayDISC_multi <- function (phy, data, Nchar, rate.mat = NULL, 
+
+rayDISC_multi <- function (phy, data, Nchar, rate.mat = NULL, hmm.map,
           node.states = "none", state.recon = c("subsequently"), 
           lewis.asc.bias = FALSE, p = NULL, root.p = "flat", ip = NULL, 
           lb = 1e-09, ub = 100, verbose = TRUE, diagn = FALSE) 
@@ -139,6 +142,8 @@ rayDISC_multi <- function (phy, data, Nchar, rate.mat = NULL,
   # charnum=1
   char_env <-prepare_vectorized_chars(data, phy, Nchar)
   char_env_summary(char_env)
+  # make invar chars
+  char_invar_env <-make_invariant_env(data, phy, hmm.map)
   #ls(char_env)
   #char_env$char2
   #
@@ -217,7 +222,7 @@ rayDISC_multi <- function (phy, data, Nchar, rate.mat = NULL,
       #                              lewis.asc.bias = lewis.asc.bias)
       out$objective <- dev.raydisc_multi(
                                   log(out$solution), 
-                                  phy = phy, char_env = char_env, Q = model.set.final$Q, 
+                                  phy = phy, char_env = char_env, char_invar_env=char_invar_env, Q = model.set.final$Q, 
                                   rate = model.set.final$rate, root.p = root.p, 
                                   lewis.asc.bias = lewis.asc.bias)
       loglik <- -out$objective
@@ -275,7 +280,7 @@ rayDISC_multi <- function (phy, data, Nchar, rate.mat = NULL,
       #               root.p = root.p, lewis.asc.bias = lewis.asc.bias)
       init = nloptr(x0 = rep(log(ip), length.out = model.set.init$np), 
                     eval_f = dev.raydisc_multi, lb = lower.init, ub = upper.init, 
-                    opts = opts, phy = phy, char_env=char_env, 
+                    opts = opts, phy = phy, char_env=char_env, char_invar_env=char_invar_env,
                     Q = model.set.init$Q, rate = model.set.init$rate, 
                     root.p = root.p, lewis.asc.bias = lewis.asc.bias)
       if (verbose == TRUE) {
@@ -287,7 +292,7 @@ rayDISC_multi <- function (phy, data, Nchar, rate.mat = NULL,
       if (state.recon == "subsequently") {
         out <- nloptr(x0 = rep(init$solution, length.out = model.set.final$np), 
                       eval_f = dev.raydisc_multi, lb = lower, ub = upper, 
-                      opts = opts, phy = phy, char_env=char_env, 
+                      opts = opts, phy = phy, char_env=char_env, char_invar_env=char_invar_env,
                       Q = model.set.final$Q, rate = model.set.final$rate, 
                       root.p = root.p, lewis.asc.bias = lewis.asc.bias)
       }
@@ -316,7 +321,7 @@ rayDISC_multi <- function (phy, data, Nchar, rate.mat = NULL,
           stop(" Length of starting state vector does not match model parameters. ")
         out <- nloptr(x0 = log(ip), eval_f = dev.raydisc_multi,
                       lb = lower, ub = upper, opts = opts, phy = phy,
-                      char_env=char_env, Q = model.set.final$Q,
+                      char_env=char_env, char_invar_env=char_invar_env, Q = model.set.final$Q,
                       rate = model.set.final$rate, root.p = root.p,
                       lewis.asc.bias = lewis.asc.bias)
       }

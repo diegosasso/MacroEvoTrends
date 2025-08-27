@@ -1,3 +1,10 @@
+library(Rcpp)
+library(RcppArmadillo)
+# Compile the C++ code
+Rcpp::sourceCpp("R-hmm/src/mat.cpp")
+
+source('R-hmm/Lewis.R')
+
 # p <- log(out$solution)
 # # liks = model.set.final$liks
 # char_env[['char1']]
@@ -8,7 +15,7 @@
 # root.p = root.p
 # lewis.asc.bias = lewis.asc.bias
 
-dev.raydisc_multi <- function (p, phy, char_env, Q, rate, root.p, lewis.asc.bias) 
+dev.raydisc_multi <- function (p, phy, char_env, char_invar_env, Q, rate, root.p, lewis.asc.bias) 
 {
   p.new <- exp(p)
   nb.tip <- length(phy$tip.label)
@@ -122,7 +129,8 @@ dev.raydisc_multi <- function (p, phy, char_env, Q, rate, root.p, lewis.asc.bias
         
         v <- 1
         for (desIndex in sequence(length(desRows))) {
-          v <- v * expm(Q * phy$edge.length[desRows[desIndex]], method = c("Ward77")) %*% liks[desNodes[desIndex],]
+          # v <- v * expm(Q * phy$edge.length[desRows[desIndex]], method = c("Ward77")) %*% liks[desNodes[desIndex],]
+          v <- v * ExpMat_C(phy$edge.length[desRows[desIndex]], Q) %*% liks[desNodes[desIndex],]
         }
         
         # Store compensation and normalized likelihood
@@ -237,14 +245,37 @@ dev.raydisc_multi <- function (p, phy, char_env, Q, rate, root.p, lewis.asc.bias
   
   #---- lewis.asc.bias
   if (lewis.asc.bias == TRUE) {
-    dummy.liks.vec <- numeric(dim(Q)[1])
-    for (state.index in 1:dim(Q)[1]) {
-      dummy.liks.vec[state.index] <- corHMM:::CalculateLewisLikelihood(p = p.new, 
-                                                              phy = phy, liks = liks, Q = Q, rate = rate, 
-                                                              root.p = root.p, state.num = state.index)
+    # dummy.liks.vec <- numeric(dim(Q)[1])
+    # for (state.index in 1:dim(Q)[1]) {
+    #   dummy.liks.vec[state.index] <- corHMM:::CalculateLewisLikelihood(p = p.new, 
+    #                                                           phy = phy, liks = liks, Q = Q, rate = rate, 
+    #                                                           root.p = root.p, state.num = state.index)
+    # }
+    # loglik <- loglik - log(sum(root.p * (1 - exp(dummy.liks.vec))))
+    #----------------
+    char_names_invar <- ls(char_invar_env)
+    #print(char_names_invar)
+    dummy.liks.vec <- numeric(length(char_names_invar))
+    # ci=1
+    for (ci in seq_along(char_names_invar)) {
+      char <- char_names_invar[ci]
+      #print(char)
+      liks.invar <- char_invar_env[[char]]
+      dummy.liks.vec[ci] <- ProbInvarLewis(phy = phy, liks = liks.invar, Q = Q, root.p = root.p)
     }
-    loglik <- loglik - log(sum(root.p * (1 - exp(dummy.liks.vec))))
+    # dummy.liks.vec <- numeric(dim(Q)[1])
+    # for (state.index in 1:dim(Q)[1]) {
+    #   dummy.liks.vec[state.index] <- ProbInvarLewis(phy = phy, liks = liks, Q = Q, root.p = root.p, state.num = state.index)
+    # }
+    LewisCorr <- log(1-sum(exp(dummy.liks.vec))) * Nchar
+    loglik_total <- loglik_total - LewisCorr
   }
   #
   -loglik_total
 }
+
+# log(0.003)
+# dd <- c(-1.501552, -9.453301)
+# log(sum(1-exp(dd)))
+# log( 50 * (1-sum(exp(dd))) )
+# log(  (1-sum(exp(dd))) ) +log(50)
