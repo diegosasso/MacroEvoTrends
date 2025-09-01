@@ -46,7 +46,7 @@ source('R-hmm/dev.rayDisc-multi.R')
 
 
 
-rayDISC_multi <- function (phy, data, Nchar, rate.mat = NULL, hmm.map,
+rayDISC_multi <- function (phy, data, Nchar, rate.mat = NULL, hmm.map, add.dummy=FALSE,
           node.states = "none", state.recon = c("subsequently"), 
           lewis.asc.bias = FALSE, p = NULL, root.p = "flat", ip = NULL, 
           lb = 1e-09, ub = 100, verbose = TRUE, diagn = FALSE) 
@@ -140,6 +140,7 @@ rayDISC_multi <- function (phy, data, Nchar, rate.mat = NULL, hmm.map,
   #   }
   # }
   # charnum=1
+  # add.dummy is when the char does not contain all states
   char_env <-prepare_vectorized_chars(data, phy, Nchar)
   char_env_summary(char_env)
   # make invar chars
@@ -151,7 +152,15 @@ rayDISC_multi <- function (phy, data, Nchar, rate.mat = NULL, hmm.map,
   data.sort <- data.frame(data[, 1 + 1], data[, 1 + 1], row.names = data[, 1])
   data.sort <- data.sort[phy$tip.label, ]
   #-------
-  #
+  # this is a quick fix if character does not contian all states
+  if (add.dummy){
+    dummy <- c(paste0(hmm.map, collapse = '&'), paste0(hmm.map, collapse = '&'))
+    data.sort.mod <- data.sort
+    data.sort.mod <-rbind(dummy, data.sort.mod)
+    model.set.final_D <- corHMM:::rate.cat.set.rayDISC(phy = phy, data = data.sort.mod, model = 'ER', charnum = 1)
+    model.set.final_D$liks <- model.set.final_D$liks[-1,]
+    char_env[['char1']] <- model.set.final_D$liks
+  }
   # data.sort <- data.frame(data[, charnum + 1], data[, charnum + 1], row.names = data[, 1])
   # data.sort <- data.sort[phy$tip.label, ]
   # data.rayDISC <- data.frame(sp = rownames(data.sort), d = data.sort[,1])
@@ -196,6 +205,10 @@ rayDISC_multi <- function (phy, data, Nchar, rate.mat = NULL, hmm.map,
   # model.set.final <-corHMM:::rate.cat.set.rayDISC(phy = phy, data = data.sort, model = 'ARD', charnum = 1)
   # model.set.final$rate
   model.set.final <- corHMM:::rate.cat.set.rayDISC(phy = phy, data = data.sort, model = 'ER', charnum = 1)
+  if (add.dummy){
+    model.set.final$Q <- model.set.final_D$Q
+    model.set.final$rate <-  model.set.final_D$rate
+  }
   if (!is.null(rate.mat)) {
     rate <- rate.mat
     model.set.final$np <- max(rate, na.rm = TRUE)

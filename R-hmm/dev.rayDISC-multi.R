@@ -72,34 +72,34 @@ dev.raydisc_multi <- function (p, phy, char_env, char_invar_env, Q, rate, root.p
   #
   #--------- ROOT
   root <- nb.tip + 1L
-  # Determine root.p based on user input or defaults
-  nstates <- ncol(Q)
-  if (is.character(root.p)) {
-    root.p <- tolower(root.p)
-    
-    if (root.p == "flat") {
-      root.p <- rep(1/nstates, nstates)
-      
-    } else if (root.p == "yang") {
-      # Use stationary distribution from Q
-      root.p <- MASS::Null(Q)
-      root.p <- c(root.p / sum(root.p))
-      
-    } else if (root.p == "madfitz") {
-      # Use scaled likelihoods at the root
-      root.p <- liks[root, ] / sum(liks[root, ])
-      
-    } else {
-      stop("Unknown root.p option. Use 'flat', 'yang', 'madfitz', or a numeric vector.")
-    }
-  } 
-  else if (is.numeric(root.p)) {
-    # Normalize custom root.p to sum to 1
-    root.p <- root.p / sum(root.p)
-  } 
-  else {
-    stop("Invalid root.p: must be NULL, 'flat', 'yang', 'madfitz', or numeric.")
-  }
+  # # Determine root.p based on user input or defaults
+  # nstates <- ncol(Q)
+  # if (is.character(root.p)) {
+  #   root.p <- tolower(root.p)
+  #   
+  #   if (root.p == "flat") {
+  #     root.p <- rep(1/nstates, nstates)
+  #     
+  #   } else if (root.p == "yang") {
+  #     # Use stationary distribution from Q
+  #     root.p <- MASS::Null(Q)
+  #     root.p <- c(root.p / sum(root.p))
+  #     
+  #   } else if (root.p == "maddfitz") {
+  #     # Use scaled likelihoods at the root
+  #     # root.p <- liks[root, ] / sum(liks[root, ])
+  #     
+  #   } else {
+  #     stop("Unknown root.p option. Use 'flat', 'yang', 'madfitz', or a numeric vector.")
+  #   }
+  # } 
+  # else if (is.numeric(root.p)) {
+  #   # Normalize custom root.p to sum to 1
+  #   root.p <- root.p / sum(root.p)
+  # } 
+  # else {
+  #   stop("Invalid root.p: must be NULL, 'flat', 'yang', 'madfitz', or numeric.")
+  # }
   #---------- END ROOT
   #
   #---------- Traverse
@@ -110,7 +110,9 @@ dev.raydisc_multi <- function (p, phy, char_env, char_invar_env, Q, rate, root.p
   # Compensation factors per character
   comp_list <- vector("list", Nchar)
   names(comp_list) <- char_names
-  loglik_total <- 0
+  liks_root <- vector("list", Nchar)
+  names(liks_root) <- char_names
+  # loglik_total <- 0
   # Likelihoods updated per character (environment already has tip likelihoods)
   # ci=1
   for (ci in seq_along(char_names)) {
@@ -137,110 +139,79 @@ dev.raydisc_multi <- function (p, phy, char_env, char_invar_env, Q, rate, root.p
         comp[focal]   <- sum(v)
         liks[focal, ] <- v / comp[focal]
     }
-    
-    # Compute per-character log-likelihood
-    loglik_char <- sum(log(comp[-TIPS])) + log(sum(exp(log(root.p) + log(liks[root, ]))))
-    
-    # Handle numerical underflow or bad values
-    if (is.infinite(loglik_char) || is.na(loglik_char)) {
-      return(1e6)  # Large penalty if invalid likelihood
-    }
-    
-    # Accumulate total log-likelihood
-    loglik_total <- loglik_total + loglik_char
-    
-    # Save updated likelihoods back into environment
-    # char_env[[char]] <- liks
-    # comp_list[[ci]]  <- comp
+    #---------------
+    comp_list[[ci]]  <- comp[-TIPS]
+    liks_root[[ci]] <- liks[root, ]
+    #---------------
+    # # Compute per-character log-likelihood
+    # loglik_char <- sum(log(comp[-TIPS])) + log(sum(exp(log(root.p) + log(liks[root, ]))))
+    # 
+    # # Handle numerical underflow or bad values
+    # if (is.infinite(loglik_char) || is.na(loglik_char)) {
+    #   return(1e6)  # Large penalty if invalid likelihood
+    # }
+    # 
+    # # Accumulate total log-likelihood
+    # loglik_total <- loglik_total + loglik_char
+    # 
+    # # Save updated likelihoods back into environment
+    # # char_env[[char]] <- liks
+    # # comp_list[[ci]]  <- comp
   }
- #  #--------- ROOT
- #  #
- #  root <- nb.tip + 1L
- #  # if (is.na(sum(log(comp[-TIPS])))) {
- #  comp.isna <- lapply(comp_list, function(x) is.na(sum(log(x[-TIPS]))))
- #  comp.isna <- unlist(comp.isna)
- #  if (any(comp.isna)) {
- #    return(1e+06)
- #  } 
- #  
- # # Determine root.p based on user input or defaults
- # nstates <- ncol(Q)
- # if (is.character(root.p)) {
- #    root.p <- tolower(root.p)
- #    
- #    if (root.p == "flat") {
- #      root.p <- rep(1/nstates, nstates)
- #      
- #    } else if (root.p == "yang") {
- #      # Use stationary distribution from Q
- #      root.p <- MASS::Null(Q)
- #      root.p <- c(root.p / sum(root.p))
- #      
- #    } else if (root.p == "madfitz") {
- #      # Use scaled likelihoods at the root
- #      root.p <- liks[root, ] / sum(liks[root, ])
- #      
- #    } else {
- #      stop("Unknown root.p option. Use 'flat', 'yang', 'madfitz', or a numeric vector.")
- #    }
- # } 
- # else if (is.numeric(root.p)) {
- #    # Normalize custom root.p to sum to 1
- #    root.p <- root.p / sum(root.p)
- # } 
- # else {
- #    stop("Invalid root.p: must be NULL, 'flat', 'yang', 'madfitz', or numeric.")
- # }
+  
+  #--------- ROOT
+  # Determine root.p based on user input or defaults
+  nstates <- ncol(Q)
+  if (is.character(root.p)) {
+    root.p <- tolower(root.p)
+    
+    if (root.p == "flat") {
+      root.p <- rep(1/nstates, nstates)
+      
+    } else if (root.p == "yang") {
+      # Use stationary distribution from Q
+      root.p <- MASS::Null(Q)
+      root.p <- c(root.p / sum(root.p))
+      
+    } else if (root.p == "maddfitz") {
+      # Use scaled likelihoods at the root
+      # root.p <- liks[root, ] / sum(liks[root, ])
+      # liks_root_table <- do.call(rbind, liks_root)
+      # pi.norm <- liks_root_table/apply(liks_root_table, 1, sum)
+      # root.p <- apply(pi.norm, 2, mean)
+      liks_root_table <- do.call(rbind, liks_root)            # Combine into table (Nchar x Nstates)
+      pi.norm <- liks_root_table / rowSums(liks_root_table)   # Normalize each row (per character)
+      root.p <- colMeans(pi.norm)                             # Average across characters
+      
+    } else {
+      stop("Unknown root.p option. Use 'flat', 'yang', 'madfitz', or a numeric vector.")
+    }
+  } 
+  else if (is.numeric(root.p)) {
+    # Normalize custom root.p to sum to 1
+    root.p <- root.p / sum(root.p)
+  } 
+  else {
+    stop("Invalid root.p: must be NULL, 'flat', 'yang', 'madfitz', or numeric.")
+  }
+  #---------- END ROOT
+  #-------- Final Lik
+  loglik_total <- 0
+  for (ci in char_names) {
+    comp_i <- comp_list[[ci]]
+    liks_i <- liks_root[[ci]]
+    # Sum of log of all comp values (excluding tips)
+    ln_comp <- sum(log(comp_i))
+    # Log-sum-exp trick for the root likelihood
+    ln_root <- log(sum(exp(log(root.p) + log(liks_i))))
+    # Add to total log-likelihood
+    loglik_total <- loglik_total + ln_comp + ln_root
+  }
+  # Handle numerical underflow or bad values
+  if (is.infinite(loglik_total) || is.na(loglik_total)) {
+    return(1e6)  # Large penalty if invalid likelihood
+  }
  
- 
- #---------------------- ORIGINAL ROOT
-  # if (is.na(sum(log(comp[-TIPS])))) {
-  #   return(1e+06)
-  # }
-  # else {
-  #   equil.root <- NULL
-  #   for (i in 1:ncol(Q)) {
-  #     posrows <- which(Q[, i] >= 0)
-  #     rowsum <- sum(Q[posrows, i])
-  #     poscols <- which(Q[i, ] >= 0)
-  #     colsum <- sum(Q[i, poscols])
-  #     equil.root <- c(equil.root, rowsum/(rowsum + colsum))
-  #   }
-  #   if (is.null(root.p)) {
-  #     flat.root = equil.root
-  #     k.rates <- 1/length(which(!is.na(equil.root)))
-  #     flat.root[!is.na(flat.root)] = k.rates
-  #     flat.root[is.na(flat.root)] = 0
-  #     root.p <- flat.root
-  #     loglik <- sum(log(comp[-TIPS])) + log(sum(exp(log(root.p) + log(liks[root, ]))))
-  #   }
-  #   else {
-  #     if (is.character(root.p)) {
-  #       # stationary root
-  #       if (root.p == "yang") {
-  #         root.p <- MASS::Null(Q)
-  #         #expm(Q*100)
-  #         root.p <- c(root.p/sum(root.p))
-  #         loglik <- sum(log(comp[-TIPS])) + log(sum(exp(log(root.p) + log(liks[root, ]))))
-  #         if (is.infinite(loglik)) {
-  #           return(1e+06)
-  #         }
-  #       }
-  #       # maddfitz
-  #       else {
-  #         root.p = liks[root, ]/sum(liks[root, ])
-  #         loglik <- sum(log(comp[-TIPS])) + log(sum(exp(log(root.p) + log(liks[root, ]))))
-  #       }
-  #     }
-  #     # custom numeric root
-  #     else {
-  #       loglik <- sum(log(comp[-TIPS])) + log(sum(exp(log(root.p) + log(liks[root, ]))))
-  #       if (is.infinite(loglik)) {
-  #         return(1e+06)
-  #       }
-  #     }
-  #   }
-  # }
 
   
   #---- lewis.asc.bias

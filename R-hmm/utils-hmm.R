@@ -44,13 +44,54 @@ prepare_vectorized_chars <- function(data, phy, Nchar) {
                             row.names = data[, 1])
     data.sort <- data.sort[phy$tip.label, ]
     
+    # if (add.dummy){ # this is for situations when char does not contain all states
+    #   dummy <- c(paste0(hmm.map, collapse = '&'), paste0(hmm.map, collapse = '&'))
+    #   data.sort.mod <- data.sort
+    #   data.sort.mod <-rbind(dummy, data.sort.mod)
+    #   model.set.final <- corHMM:::rate.cat.set.rayDISC(phy = phy, data = data.sort.mod, model = 'ER', charnum = 1)
+    #   model.set.final$liks <- model.set.final$liks[-1,]
+    # } else {
+    #   model.set.final <- corHMM:::rate.cat.set.rayDISC(phy = phy, data = data.sort, model = 'ER', charnum = 1)
+    # }
+    
     # Factorize using corHMM
-    factored <- corHMM:::factorData(data.sort, charnum = charnum)
+    #factored <- corHMM:::factorData(data.sort, charnum = charnum)
     model.set.final <- corHMM:::rate.cat.set.rayDISC(phy = phy, data = data.sort, model = 'ER', charnum = 1)
     
     # Store in environment under character name
     char_name <- paste0("char", charnum)
-    assign(char_name, model.set.final$lik, envir = char_env)
+    assign(char_name, model.set.final$liks, envir = char_env)
+    #assign(char_name, factored, envir = char_env)
+  }
+  
+  return(char_env)
+}
+
+
+# data <- dt
+# phy <- tree
+# Nchar <- 200
+prepare_vectorized_charsSimmap <- function(data, phy, Nchar) {
+  # Create an environment for ultrafast constant-time access
+  char_env <- new.env(hash = TRUE, parent = emptyenv())
+  
+  # Loop over characters
+  #charnum=1
+  for (charnum in 1:Nchar) {
+    # Prepare input for factorData
+    data.sort <- data.frame(data[, charnum + 1], data[, charnum + 1],
+                            row.names = data[, 1])
+    data.sort <- data.sort[phy$tip.label, ]
+    
+    # Factorize using corHMM
+    factored <- corHMM:::factorData(data.sort, charnum = charnum)
+    model.set.final <- corHMM:::rate.cat.set.rayDISC(phy = phy, data = data.sort, model = 'ER', charnum = 1)
+    #--
+    out <- model.set.final$lik[c(1:nrow(data.sort)),]
+    rownames(out) <- rownames(data.sort)
+    # Store in environment under character name
+    char_name <- paste0("char", charnum)
+    assign(char_name, out, envir = char_env)
   }
   
   return(char_env)
@@ -84,3 +125,55 @@ char_env_summary <- function(char_env) {
     cat("-------------------------------\n")
   }
 }
+
+
+
+compute_tip_likelihoods <- function(dt, tree, char.states, Q.pars, rate.mat, hmm.map = c("0&1", "2&3"), root.p = "flat") {
+  # # Define state space
+  # char.states <- 0:3
+  # 
+  # # Extract parameter values in desired order (manually or programmatically)
+  # pars <- fit_Q$solution
+  # Q.pars <- c(pars[1,3],  # 0→2
+  #             pars[2,4],  # 1→3
+  #             pars[4,3],  # 3→2
+  #             pars[4,2])  # 3→1
+  
+  # Environment to store per-character likelihoods
+  char_env <- new.env()
+  
+  # Loop over each character (excluding taxa column)
+  for (j in 2:ncol(dt)) {
+    print(paste0('Working on char: ', j, '\n'))
+    char <- dt[, c(1, j)]
+    lik.tips <- matrix(0, nrow = Ntip(tree), ncol = length(char.states))
+    rownames(lik.tips) <- char[,1]
+    colnames(lik.tips) <- char.states
+    
+    # Loop over taxa
+    for (i in 1:Ntip(tree)) {
+      char.new <- char
+      x <- char.new[i, 2]  # e.g., "2&3"
+      elements <- unlist(strsplit(x, "&"))
+      
+      # For each possible state
+      for (e in elements) {
+        char.new[i, 2] <- e  # Assign one possible state
+        lik <- rayDISC_multi(tree, char.new, Nchar = 1, p = Q.pars,
+                             rate.mat = rate.mat, hmm.map = hmm.map,
+                             add.dummy = TRUE, root.p = root.p,
+                             node.states = "none", lewis.asc.bias = TRUE)$loglik
+        lik.tips[i, e] <- lik
+      }
+      
+      # Normalize likelihoods
+      lik.tips[i, ] <- lik.tips[i, ] / sum(lik.tips[i, ])
+    }
+    
+    # Save likelihood matrix in environment
+    char_env[[paste0("char", j - 1)]] <- lik.tips
+  }
+  
+  return(char_env)
+}
+
