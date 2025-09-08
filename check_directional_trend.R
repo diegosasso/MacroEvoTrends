@@ -112,7 +112,7 @@ for (i in 1:nsim){
   
   # Sample stochastic maps.
   smaps[[i]] <- makeSimmap(tree = tree, data = char, model = Q, rate.cat = 1, nSim = nstm)
-  
+  #make.simmap(tree, char, model='SYM', nsim=1)
 }
 
 # Check some reconstructions.
