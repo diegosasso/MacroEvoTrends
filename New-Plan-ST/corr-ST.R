@@ -18,7 +18,7 @@ head(rates)
 colMeans(rates == 0)
 
 # total rate per body regions (is it correct ????)
-rate_total <- apply(rates, 2, sum) / nrow(rates) # should it be devided by N branches
+rate_total <- apply(rates, 2, sum) !!!!! treelength !!!! / nrow(rates) # should it be devided by N branches
 rate_total
 # ---- Number of states per BR ----
 load('data/char_num.RDA')
@@ -58,7 +58,7 @@ corr.pearson.log <-run_all_pairwise_correlations_parallel(
 
 pval(corr.pearson.log, use.bonf = T, 0.05)  %>% length()
 pval(corr.pearson.log, use.bonf = T, 0.05)
-corr_val(corr.pearson.log)
+corr_val(corr.pearson.log) #%>% max
 
 pv.sig <- pval(corr.pearson.log, use.bonf = T, 0.05) 
 cv.sig <- corr_val(corr.pearson.log)

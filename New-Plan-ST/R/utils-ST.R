@@ -740,3 +740,28 @@ get_tip_path <- function(tree, tip) {
   
   return(path_ids)
 }
+
+
+get_tip_enrichment <- function(tree, enr.masked){
+  tree.height <- max(node.depth.edgelength(tree))
+  ntip <- Ntip(tree)
+  
+  enr.tip <- matrix(NA, nrow=ntip, ncol=ncol(enr.masked))
+  # dim(enr.tip)
+  colnames(enr.tip) <- colnames(enr.masked)
+  #br_index <- 1
+  for (br_index in 1:ncol(enr.masked)){
+    br <- enr.masked[,br_index]
+    #tip_total_rate <- rep(NA,  ntip)
+    #tip_index <- 1
+    for (tip_index in 1:ntip){
+      #tip_index <- 1
+      #tree$tip.label[77]
+      tip_path <- get_tip_path(tree, tip_index)
+      tip_path_rates <- br[tip_path]
+      # we scale it by tot time over path
+      enr.tip[tip_index, br_index] <- sum(tip_path_rates)/tree.height
+    }
+  }
+  return(enr.tip)
+}
