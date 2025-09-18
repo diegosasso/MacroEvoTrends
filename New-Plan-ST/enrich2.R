@@ -161,8 +161,62 @@ sum(enr_class > 0)
 plot(tree)
 axisPhylo()
 edgelabels(bin.enr, frame = "none", col = "red", cex = 0.6)
+#-------------
+
+bin.enr[grepl("^0+$", bin.enr)] <- ""
+
+plot_branch_colored_tree(tree, (all.enr > 0)*1 , palette = viridis(15), 
+                         title = "all", legend_title = 'Cols')
+
+edgelabels( frame = "none", col = "red", cex = 0.6)
+edgelabels(bin.enr, frame = "none", col = "red", cex = 0.6)
+
+#_-----
+
+plot_branch_colored_tree(tree, (all.enr > 0)*1 , palette = viridis(15), 
+                         title = "all", legend_title = 'Cols')
 
 
+edge_coords <- get("last_plot.phylo", envir = .PlotPhyloEnv)
+
+for (i in seq_along(bin.enr)) {
+  state <- bin.enr[i]
+  if (state == "") next
+  
+  # edge endpoints
+  x0 <- edge_coords$xx[tree$edge[i, 1]]
+  y0 <- edge_coords$yy[tree$edge[i, 1]]
+  x1 <- edge_coords$xx[tree$edge[i, 2]]
+  y1 <- edge_coords$yy[tree$edge[i, 2]]
+  
+  # edge midpoint (x only), y = child’s y (keeps glyphs aligned)
+  xm <- (x0 + x1) / 2
+  ym <- y1
+  
+  # binary string → vector
+  bits <- as.integer(strsplit(state, "")[[1]])
+  n <- length(bits)
+  
+  # rectangle dimensions
+  box_w <- max(edge_coords$xx) * 0.01
+  box_h <- max(edge_coords$yy) * 0.01
+  gap   <- box_w * 0.1
+  
+  total_w <- n * (box_w + gap)
+  x_start <- xm - total_w/2
+  
+  # draw boxes
+  for (j in seq_len(n)) {
+    xleft   <- x_start + (j-1) * (box_w + gap)
+    xright  <- xleft + box_w
+    ybottom <- ym - box_h/2
+    ytop    <- ym + box_h/2
+    
+    rect(xleft, ybottom, xright, ytop,
+         col = ifelse(bits[j] == 1, "red", "white"),
+         border = "black", lwd = 0.5)
+  }
+}
 
 # # Example tree
 # set.seed(1)
@@ -244,6 +298,87 @@ plot_enrichment_entropy(tree, enr[,c(14:15)], type = "Neff_scaled", n_points = 1
 plot(p1$data$entropy, p2$data$entropy, typ='l')
 plot(p3$data$entropy, p2$data$entropy, typ='l')
 
+#-- Pyrate
+pyr <- read.csv('data/pyrate.csv', header = F)
+
+plot(pyr$V1, pyr$V2, type='l')
+
+x <- plot_enrichment_entropy(tree, enr, type = "Neff_scaled", n_points = 27)$data
+
+
+plot(x$time, x$entropy, type = 'l')
+plot(pyr$V1, pyr$V2, type='l')
+
+en <- x$entropy
+di <- pyr$V2
+plot(di, en)
+di[1] <- di[2]
+plot(pyr$V1, di, type='l')
+log(di)
+di <- di - min(di) + 1e-6   # add offset to make min slightly > 0
+log(di)
+log(en)
+en[1] <- 1e-6
+log(en)
+
+plot(di, en)
+plot(log(di), log(en))
+plot(log(di), en)
+
+plot(di, en)
+abline(lm(en ~ di), col = "red", lwd = 2)
+summary(lm(en ~ di))
+cor.test(en, di, method = "pearson")
+
+plot(log(di), en)
+abline(lm(en ~ log(di)), col = "red", lwd = 2)
+cor.test(en, log(di), method = "pearson")
+
+
+x <- plot_enrichment_entropy(tree, enr, type = "Neff_scaled", n_points = 10000)$data
+di_time <- pyr$V1
+di
+di_time
+
+library(ggplot2)
+
+# dataframe for entropy curve
+df_entropy <- data.frame(
+  time = x$time,
+  entropy = x$entropy
+)
+
+# dataframe for di
+df_di <- data.frame(
+  time = di_time,
+  di = di
+)
+
+ggplot() +
+  # entropy curve (dense line)
+  geom_line(data = df_entropy, aes(x = time, y = entropy, color = "Neff_scaled"), size = 1) +
+  
+  # di curve (line + points at sparse time steps)
+  geom_line(data = df_di, aes(x = time, y = di / max(di, na.rm = TRUE) * max(df_entropy$entropy, na.rm = TRUE),
+                              color = "di"), size = 1) +
+  geom_point(data = df_di, aes(x = time, y = di / max(di, na.rm = TRUE) * max(df_entropy$entropy, na.rm = TRUE),
+                               color = "di"), size = 2) +
+  
+  scale_y_continuous(
+    name = "Neff_scaled",
+    sec.axis = sec_axis(~ . * max(di, na.rm = TRUE) / max(df_entropy$entropy, na.rm = TRUE),
+                        name = "di")
+  ) +
+  scale_color_manual(values = c("Neff_scaled" = "blue", "di" = "red")) +
+  scale_x_reverse() +
+  theme_minimal(base_size = 14) +
+  theme(
+    legend.position = "top",
+    axis.title.y.left  = element_text(color = "blue"),
+    axis.title.y.right = element_text(color = "red")
+  ) +
+  labs(x = "Time from root (Ma)", color = "Metric")
+
 
 #-------- Enrichment strength mesuares simultenous strong mode of evolution across BRs
 
@@ -293,16 +428,127 @@ df_all$metric_scaled <- with(df_all,
 )
 
 # ---- Plot ----
+# p <- ggplot(df_all, aes(x = time, y = metric_scaled, color = metric)) +
+#   geom_line(na.rm = TRUE) +
+#   theme_minimal() +
+#   scale_x_reverse() +
+#   scale_y_continuous(
+#     name = "Neff_scaled",
+#     sec.axis = sec_axis(~ . / scale_factor,
+#                         name = "Enrichment_strength_scaled")
+#   ) +
+#   labs(x = "Time from root") +
+#   theme(legend.position = "bottom")
+
 p <- ggplot(df_all, aes(x = time, y = metric_scaled, color = metric)) +
-  geom_line(na.rm = TRUE) +
-  theme_minimal() +
-  scale_x_reverse() +
+  geom_line(size = 1) +                                # thicker lines
+  theme_classic(base_size = 14) +                      # clean Nature-like theme
+  scale_x_reverse(expand = c(0, 0)) +                  # root left, no padding
   scale_y_continuous(
     name = "Neff_scaled",
     sec.axis = sec_axis(~ . / scale_factor,
                         name = "Enrichment_strength_scaled")
   ) +
   labs(x = "Time from root") +
-  theme(legend.position = "bottom")
+  scale_color_manual(
+    values = c("Neff_scaled_dis" = "#1f77b4",          # blue
+               "Neff_scaled_enr" = "#2ca02c",          # green
+               "Strength_scaled_enr" = "#d62728")      # red
+  ) +
+  theme(
+    axis.line = element_line(color = "black", size = 0.6),
+    axis.ticks = element_line(color = "black", size = 0.6),
+    axis.text = element_text(color = "black"),
+    legend.title = element_blank(),
+    legend.position = "top",                           # move legend up
+    legend.box = "horizontal",
+    panel.grid = element_blank()                       # remove gridlines
+  )
 
 print(p)
+
+
+
+
+p <- ggplot(df_all, aes(x = time, y = metric_scaled, color = metric, fill = metric)) +
+  geom_line(size = 1) +
+  geom_area(alpha = 0.2, position = "identity") +
+  theme_classic(base_size = 14) +
+  scale_x_reverse(
+    expand = c(0, 0),                              # no gap on x
+    breaks = seq(0, max(df_all$time, na.rm = TRUE), by = 50)  # ticks every 50
+  ) +
+  scale_y_continuous(
+    expand = c(0, 0),                              # no gap on y
+    name = "Neff_scaled",
+    sec.axis = sec_axis(~ . / scale_factor,
+                        name = "Enrichment_strength_scaled")
+  ) +
+  labs(x = "Time from root") +
+  scale_color_manual(
+    values = c("Neff_scaled_dis" = "#1f78b4",
+               "Neff_scaled_enr" = "#33a02c",
+               "Strength_scaled_enr" = "#e31a1c")
+  ) +
+  scale_fill_manual(
+    values = c("Neff_scaled_dis" = "#1f78b4",
+               "Neff_scaled_enr" = "#33a02c",
+               "Strength_scaled_enr" = "#e31a1c")
+  ) +
+  theme(
+    axis.line = element_line(color = "black", size = 0.6),
+    axis.ticks = element_line(color = "black", size = 0.6),
+    axis.text = element_text(color = "black"),
+    legend.title = element_blank(),
+    legend.position = "top",
+    legend.box = "horizontal",
+    panel.grid = element_blank()
+  )
+
+print(p)
+
+
+library(deeptime)
+
+p <- ggplot(df_all, aes(x = time, y = metric_scaled, color = metric, fill = metric)) +
+  geom_line(size = 1) +
+  geom_area(alpha = 0.2, position = "identity") +
+  theme_classic(base_size = 14) +
+  scale_x_reverse(
+    expand = c(0, 0),
+    breaks = seq(0, max(df_all$time, na.rm = TRUE), by = 50)
+  ) +
+  scale_y_continuous(
+    expand = c(0, 0),
+    name = "Neff_scaled",
+    sec.axis = sec_axis(~ . / scale_factor,
+                        name = "Enrichment_strength_scaled")
+  ) +
+  labs(x = "Time (Ma)") +
+  scale_color_manual(
+    values = c("Neff_scaled_dis" = "#1f78b4",
+               "Neff_scaled_enr" = "#33a02c",
+               "Strength_scaled_enr" = "#e31a1c")
+  ) +
+  scale_fill_manual(
+    values = c("Neff_scaled_dis" = "#1f78b4",
+               "Neff_scaled_enr" = "#33a02c",
+               "Strength_scaled_enr" = "#e31a1c")
+  ) +
+  theme(
+    axis.line = element_line(color = "black", size = 0.6),
+    axis.ticks = element_line(color = "black", size = 0.6),
+    axis.text = element_text(color = "black"),
+    legend.title = element_blank(),
+    legend.position = "top",
+    legend.box = "horizontal",
+    panel.grid = element_blank()
+  ) +
+  coord_geo(
+    dat = "periods",     # can also use "epochs" or "stages"
+    pos = "bottom",      # bottom only
+    size = 3             # label size
+  )
+
+print(p)
+

@@ -15,8 +15,8 @@ source("R/utils-ST.R")
 
 #stm_merg <- lapply(stm_amalg, function(x) merge_tree_cat_list(x) )
 #saveRDS(stm_merg, "data_hym/stm_merg.RDS")
-stm_merg <-readRDS("data_hym/stm_merg.RDS")
-tree <-readRDS("data_hym/hym_tree.RDS")
+stm_merg <-readRDS("data/stm_merg.RDS")
+tree <-readRDS("data/hym_tree.RDS")
 plot(tree)
 
 # branch rate
@@ -94,6 +94,8 @@ plot_branch_colored_tree(tree, enriched_over[,12], palette = viridis(100),
 # head
 plot_branch_colored_tree(tree, (apply(enriched_over[,c(1:2)], 1, sum) > 0)*1, palette = viridis(3), 
                          title = "Head", legend_title = 'Cols')
+
+
 
 # thorax
 plot_branch_colored_tree(tree, (apply(enriched_over[,c(3:8)], 1, sum) > 0)*1, palette = viridis(3), 

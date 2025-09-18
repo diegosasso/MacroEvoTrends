@@ -680,3 +680,63 @@ plot_enrichment_strength <- function(tree, enr, n_points = 100,  type = c("not_s
   
   return(list(data = df, plot = p))
 }
+
+
+enrich_next_level <- function(enr, region_class, group_order = NULL) {
+  # enr: matrix branches × regions (0/1 enrichment)
+  # region_class: data.frame with columns: region, group
+  # group_order: optional vector giving desired order of groups
+  
+  # Convert to data.frame for easier handling
+  enr_df <- as.data.frame(enr)
+  enr_df$branch <- seq_len(nrow(enr_df))  # keep branch ID
+  
+  # Reshape to long format
+  library(reshape2)
+  enr_long <- melt(enr_df, id.vars = "branch",
+                   variable.name = "region",
+                   value.name = "enriched")
+  
+  # Join with region_class
+  enr_long <- merge(enr_long, region_class, by = "region")
+  
+  # Collapse: for each branch × group, mark 1 if any region in group enriched
+  enr_collapsed <- aggregate(enriched ~ branch + group, data = enr_long,
+                             FUN = function(x) as.integer(any(x > 0)))
+  
+  # Reshape back to wide matrix: branches × groups
+  enr_class <- reshape(enr_collapsed,
+                       idvar = "branch",
+                       timevar = "group",
+                       direction = "wide")
+  
+  # Clean column names
+  colnames(enr_class) <- sub("enriched\\.", "", colnames(enr_class))
+  
+  # Remove branch col, set rownames
+  rownames(enr_class) <- enr_class$branch
+  enr_class <- enr_class[, -1, drop = FALSE]
+  
+  # Reorder groups if order provided
+  if (!is.null(group_order)) {
+    enr_class <- enr_class[, group_order, drop = FALSE]
+  }
+  
+  return(enr_class)
+}
+
+
+get_tip_path <- function(tree, tip) {
+  # tip can be label or index
+  if (is.character(tip)) {
+    tip <- which(tree$tip.label == tip)
+  }
+  
+  # all ancestors of the tip (including root)
+  anc <- phangorn::Ancestors(tree, tip, type = "all")
+  
+  # edge indices where the child is the tip or one of its ancestors
+  path_ids <- which(tree$edge[,2] %in% c(tip, anc))
+  
+  return(path_ids)
+}
