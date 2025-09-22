@@ -291,7 +291,7 @@ make_custom_palette <- function(val_min, val_max, midpoint,
 
 map_to_color <- function(vals, pal_info) {
   cols <- pal_info$pal[cut(vals, breaks = pal_info$breaks, include.lowest = TRUE)]
-  # cols[vals == log(eps)] <- "#ffffff"  # force exact zeros to white
+  #cols[vals == log(eps)] <- "#ffffff"  # force exact zeros to white
   #cols[vals == 0] <- "#ffffff"
   #cols[vals == 0] <- "lightgrey"
   cols[vals == 0] <- "aliceblue"  #"skyblue1" "#deebf7" 

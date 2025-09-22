@@ -567,17 +567,25 @@ diversity_metric <- function(states, type = c("Neff", "Neff_scaled", "weighted")
 
 
 #enr <- enr[,c(1:2)]
-plot_enrichment_entropy <- function(tree, enr, n_points = 100,  type=c("Neff", "Neff_scaled", "weighted"), base = exp(1)) {
+# enr <- enr[,1, drop=F]
+#n_points = 10
+plot_enrichment_entropy <- function(tree, enr, n_points = 100, time_points=NULL,  type=c("Neff", "Neff_scaled", "weighted"), base = exp(1)) {
   # enr: matrix (branches × body regions), 0/1 enrichment
   
   # branch times (start, end for each edge)
   H <- nodeHeights(tree)
   max_height <- max(H)
-  times <- seq(0, max_height, length.out = n_points)
-  times[n_points] <- times[n_points] - 1e-4
+  if (is.null(time_points)){
+    times <- seq(0, max_height, length.out = n_points)
+    times[n_points] <- times[n_points] - 1e-4
+  } else { # time points provided by user
+    times <- time_points
+  }
+
   
-  entropy_vals <- numeric(n_points)
-  # i=3
+  #entropy_vals <- numeric(n_points)
+  entropy_vals <- numeric(length(times))
+  # i=10
   for (i in seq_along(times)) {
     t <- times[i]
     edge_ids <- which(t >= H[,1] & t <= H[,2])  # edges active at time t

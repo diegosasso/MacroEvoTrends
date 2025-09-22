@@ -1,0 +1,411 @@
+---
+title: "Enrichment Plots"
+date: "`r Sys.Date()`"
+output: 
+  html_document:
+    df_print: paged
+---
+
+
+
+```{r setup, include=F}
+
+library(ape)
+library(phytools)
+library(ontophylo)
+library(dplyr)
+library(parallel)
+library(viridis)
+source("R/utils-ST.R")
+source('R/region_class.R')
+
+
+knitr::opts_chunk$set(
+  echo = TRUE,       # show code by default
+  warning = FALSE,
+  message = FALSE
+)
+```
+
+
+# Read and Make Data
+
+```{r}
+
+stm_merg <-readRDS("data/stm_merg.RDS")
+tree <-readRDS("data/hym_tree.RDS")
+#plot(tree)
+
+# branch rate
+rates_list <- lapply(stm_merg, get_branch_rate_across_smaps)
+rates <- do.call(cbind, rates_list)
+#head(rates)
+rate_total <- apply(rates, 2, sum)
+#rate_total
+
+# tot states per BR
+load('data/char_num.RDA')
+tot_states <- lapply(anat_ent_state, function(x) sum(get_len(x)) ) %>% unlist
+#tot_states
+
+
+rates_norm <- apply(rates, 1, function(x) x/tot_states) %>% t
+#head(rates_norm)
+#head(rates)
+```
+
+# Branch enrichment
+
+##  enrichment level 1
+```{r}
+enr <- get_enrichment_mask(rates, lower_q = 0.05, upper_q = 0.95, direction = "over", return_type = "binary")
+enr.branch <- apply(enr, 1, sum)
+enr.boolean <- (enr.branch > 0)*1
+hist(enr.branch)
+
+plot_branch_colored_tree(tree, enr.boolean, palette = viridis(15), 
+                         title = "all", legend_title = 'Cols')
+```
+
+## enrichment level 2
+
+```{r}
+#------ Convert to binary
+enr.bin <- apply(enr, 1, function(x) paste0(x, collapse = ''))
+# enr.bin
+unique(enr.bin)
+sum(enr.bin > 0)
+# enr.boolean
+
+# region_class is sourced from the file
+region_class
+enr_class <- enrich_next_level(enr, region_class)
+enr_class <- enr_class[c("head", "mesosoma", "metasoma", "legs",  "wings")]
+head(enr_class)
+#head(enr)
+
+# Get enrichment for 5 regions
+bin.enr <- apply(enr_class, 1, function(x) paste0(x, collapse = ''))
+bin.enr[grepl("^0+$", bin.enr)] <- ""
+unique(bin.enr) %>% length()
+table(bin.enr)
+#sum(enr_class > 0)
+
+plot_branch_colored_tree(tree, enr.boolean, palette = viridis(15), 
+                         title = "all", legend_title = 'Cols')
+
+
+edgelabels(bin.enr, frame = "none", col = "red", cex = 0.6)
+
+```
+
+
+# Tip overrepresentation
+
+```{r}
+
+enr.masked <- get_enrichment_mask(rates_norm, lower_q = 0.05, upper_q = 0.95, direction = "over", return_type = "masked")
+
+tip.enr <- get_tip_enrichment(tree, enr.masked)
+#tip.enr[tip.enr>0] %>% hist()
+hist(tip.enr)
+max(tip.enr)
+min(tip.enr)
+min(tip.enr[tip.enr > 0])
+
+# # fix zeros wit log
+# eps <- min(tip.enr[tip.enr > 0]) / 10  # smaller than smallest positive
+# tip.enr <- log(tip.enr + eps)
+# head(tip.enr)
+# max(tip.enr)
+# min(tip.enr)
+# hist(tip.enr)
+# tip.enr[tip.enr>log(eps)] %>% hist()
+```
+## Make colors
+
+```{r}
+# Make palette
+pal_info <- list()
+pal_info$pal <- gplots::rich.colors(64, palette="temperature", alpha=1.0, rgb=FALSE, plot=F)
+pal_info$pal[1:8] <- pal_info$pal[9]
+breaks<- BAMMtools::assignColorBreaks(c(tip.enr[tip.enr > 0]), spex=NULL, NCOLORS = 64, method="jenks")
+pal_info$breaks <- unique(breaks)
+
+# Fun: vals -> colors
+map_to_color <- function(vals, pal_info) {
+  cols <- pal_info$pal[cut(vals, breaks = pal_info$breaks, include.lowest = TRUE)]
+  #cols[vals == log(eps)] <- "#ffffff"  # force exact zeros to white
+  #cols[vals == 0] <- "#ffffff"
+  #cols[vals == 0] <- "lightgrey"
+  cols[vals == 0] <- "aliceblue"  #"skyblue1" "#deebf7"  # this is a special color for 0s
+  cols
+}
+# map_to_color(tip.enr[1,1], pal_info)
+
+
+# TEST PALETTE
+# val_min <- min(tip.enr[tip.enr > 0]) #min(tip.enr, na.rm = TRUE)
+# val_max <- max(tip.enr, na.rm = TRUE)
+# vals_x <- seq(val_min , val_max, length.out=100)
+# cols_x <- map_to_color(vals_x, pal_info)
+# par(mar = c(2, 4, 2, 2))
+# plot(vals_x, rep(1, length(vals_x)), 
+#      col = cols_x, pch = 15, cex = 3,
+#      xlab = "Value", ylab = "", yaxt = "n")
+```
+
+
+## Make heatmap legend
+
+```{r}
+
+if (!dir.exists("plots")) dir.create("plots")
+file_base <- "plots/heat_map-over-legend"
+
+# postscript(
+#   file = paste0(file_base, ".eps"),
+#   width = 7,          # width in inches (adjust for column width)
+#   height = 9,         # height in inches
+#   horizontal = FALSE, # portrait orientation
+#   onefile = FALSE,    # one figure per file
+#   paper = "special"   # use exact width/height
+# )
+
+png(
+  file = paste0(file_base, ".png"),
+  width = 15, height = 9, units = "in", res = 300
+)
+
+
+# ---- Horizontal legend (point-based, aligned with ticks) ----
+val_min <- min(tip.enr[tip.enr > 0]) 
+val_max <- max(tip.enr, na.rm = TRUE)
+
+# values for gradient
+vals_x <- seq(val_min, val_max, length.out = 200)
+cols_x <- map_to_color(vals_x, pal_info)
+
+par(mar = c(4, 4, 2, 2))
+plot(vals_x, rep(0.001, length(vals_x)), # rep(0.001 CONTROLS TICK Y POS
+     col = cols_x, pch = 15, cex = 9.5,
+     xlab = "Value", ylab = "", yaxt = "n",
+     xaxt = "n", bty = "n",
+     xlim = c(val_min, val_max),  # force exact alignment
+     ylim = c(0, 1))              # thin strip
+
+# --- Helper for scientific axis labels ---
+sci_labels <- function(vals, digits = 2) {
+  labs <- vector("list", length(vals))
+  for (i in seq_along(vals)) {
+    x <- vals[i]
+    if (x == 0) {
+      labs[[i]] <- expression(0)
+    } else {
+      expo <- floor(log10(abs(x)))
+      base <- signif(x / 10^expo, digits)
+      labs[[i]] <- bquote(.(base) %*% 10^.(expo))
+    }
+  }
+  as.expression(labs)
+}
+ticks <- c(val_min, (val_min + val_max)/2, val_max)
+# draw only ticks + labels, no baseline
+axis(1, at = ticks, labels = sci_labels(ticks),
+     lwd = 0,       # removes horizontal axis line
+     lwd.ticks = 2) # keeps tick marks
+
+# ticks: min, mid, max
+# axis(1, at = c(val_min, (val_min + val_max)/2, val_max),
+#      labels = round(c(val_min, (val_min + val_max)/2, val_max), 2))
+
+
+
+
+# --- Custom vertical legend bar ---
+
+val_min <- min(tip.enr[tip.enr > 0]) 
+val_max <- max(tip.enr, na.rm = TRUE)
+
+vals_y <- seq(val_min, val_max, length.out = 200)
+cols_y <- map_to_color(vals_y, pal_info)
+
+# user controls
+bar_x   <- 0.5      # horizontal position of bar
+bar_len <- c(val_min, val_max)  # span of values
+bar_th  <- 2        # thickness multiplier (cex for pch=15)
+
+par(mar = c(4, 4, 2, 2))
+plot(NA, xlim = c(0, 1), ylim = c(val_min, val_max),
+     xaxt = "n", yaxt = "n", xlab = "", ylab = NA, bty = "n")
+
+# plot color bar as vertical strip
+points(rep(bar_x, length(vals_y)), vals_y,
+       col = cols_y, pch = 15, cex = bar_th)
+
+# ticks: min, mid, max
+ticks <- c(val_min, (val_min + val_max)/2, val_max)
+axis(2, at = ticks, labels = sci_labels(ticks),
+     lwd = 0,       # no baseline line
+     lwd.ticks = 1, las = 1,  # keep tick marks
+     line = -0.9) # controls y position
+
+dev.off()
+
+```
+
+
+## Useful Colors
+
+```{r}
+"mediumorchid3"
+"darkorange2"
+"goldenrod2"
+"gold"
+"purple3" 
+"forestgreen"
+"deepskyblue3"
+```
+
+
+# Plot 
+
+```{r}
+# ---- Save to EPS ----
+if (!dir.exists("plots")) dir.create("plots")
+file_base <- "plots/tree_enrich"
+
+# postscript(
+#   file = paste0(file_base, ".eps"),
+#   width = 7,          # width in inches (adjust for column width)
+#   height = 9,         # height in inches
+#   horizontal = FALSE, # portrait orientation
+#   onefile = FALSE,    # one figure per file
+#   paper = "special"   # use exact width/height
+# )
+
+png(
+  file = paste0(file_base, ".png"),
+  width = 15, height = 9, units = "in", res = 300
+)
+
+# ==========================
+# Plot tree and color branches
+# ==========================
+branch_colors <- ifelse(enr.boolean == 1, "#2ca02c", "black")
+branch_widths <- ifelse(enr.boolean == 1, 4, 1.8)  # thicker if enriched
+
+
+plot(tree, edge.color = branch_colors, show.tip.label = TRUE, 
+     cex = 0.5, label.offset = 90, edge.width = branch_widths)
+
+# ==========================
+# Plot heatmap
+# ==========================
+
+lastPP <- get("last_plot.phylo", envir = .PlotPhyloEnv)
+
+# Tip coordinates
+tip_y <- lastPP$yy[1:Ntip(tree)]
+tip_x <- max(lastPP$xx)
+
+# ---- Square sizes ----
+dy <- median(diff(sort(tip_y)))
+box_size_y <- dy * 1.2   # adjust multiplier for bigger/smaller squares
+
+# Scaling factor: keep squares true
+pin <- par("pin")  # plot dimensions (inches)
+xrange <- diff(lastPP$x.lim)
+yrange <- diff(lastPP$y.lim)
+x_per_inch <- xrange / pin[1]
+y_per_inch <- yrange / pin[2]
+box_size_x <- box_size_y * (x_per_inch / y_per_inch)
+
+# ---- Gap between tree and heatmap ----
+gap <- 0.005 * max(lastPP$xx)
+
+# ---- Define groups of columns ----
+# Example: 3 groups 1:2, 3:8, 9:15
+groups <- list(1:2, 3:8, 9:10, 11:13, 14:15)
+
+# Compute group offsets
+gap_size <- box_size_x * 0.4   # adjust for wider/narrower gaps
+group_offsets <- rep(0, ncol(tip.enr))
+for (g in seq_along(groups)) {
+  if (g > 1) {
+    group_offsets[groups[[g]]] <- (g-1) * gap_size
+  }
+}
+
+# ---- Draw glyphs ----
+for (i in 1:Ntip(tree)) {
+  values <- as.numeric(tip.enr[i, ])
+  n <- length(values)
+  for (j in 1:n) {
+    val <- values[j]
+    col <- map_to_color(val, pal_info)
+    
+    # Add group offset to x position
+    xleft   <- tip_x + gap + (j-1) * box_size_x + group_offsets[j]
+    xright  <- xleft + box_size_x
+    ybottom <- tip_y[i] - box_size_y/2
+    ytop    <- tip_y[i] + box_size_y/2
+    
+    rect(xleft, ybottom, xright, ytop,
+         col = col, border = "black", lwd = 0.4)
+  }
+}
+
+
+
+# ==========================
+# Plot navajo enrichment on branches
+# ==========================
+
+edge_coords <- get("last_plot.phylo", envir = .PlotPhyloEnv)
+
+for (i in seq_along(bin.enr)) {
+  state <- bin.enr[i]
+  if (state == "") next
+  
+  # edge endpoints
+  x0 <- edge_coords$xx[tree$edge[i, 1]]
+  y0 <- edge_coords$yy[tree$edge[i, 1]]
+  x1 <- edge_coords$xx[tree$edge[i, 2]]
+  y1 <- edge_coords$yy[tree$edge[i, 2]]
+  
+  # edge midpoint (x only), y = child’s y (keeps glyphs aligned)
+  xm <- (x0 + x1) / 2
+  ym <- y1
+  
+  # binary string → vector
+  bits <- as.integer(strsplit(state, "")[[1]])
+  n <- length(bits)
+  
+  # rectangle dimensions
+  # box_w <- max(edge_coords$xx) * 0.01
+  # box_h <- max(edge_coords$yy) * 0.01
+  box_w <- max(edge_coords$xx) * 0.011
+  box_h <- max(edge_coords$yy) * 0.011
+  gap   <- box_w * 0
+  
+  total_w <- n * (box_w + gap)
+  x_start <- xm - total_w/2
+  
+  # draw boxes
+  for (j in seq_len(n)) {
+    xleft   <- x_start + (j-1) * (box_w + gap)
+    xright  <- xleft + box_w
+    ybottom <- ym - box_h/2
+    ytop    <- ym + box_h/2
+    
+    rect(xleft, ybottom, xright, ytop,
+         col = ifelse(bits[j] == 1, "seagreen3", "white"),
+         border = "black", lwd = 0.5)
+  }
+}
+
+dev.off()
+```
+
+

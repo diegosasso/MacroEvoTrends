@@ -34,11 +34,13 @@ stm_merg2$'metasoma_gen' <- do.call(c, stm_merg[9:10])
 stm_merg2$'legs' <- do.call(c, stm_merg[11:13])
 stm_merg2$'wings' <- do.call(c, stm_merg[14:15])
 stm_merg2
+
 # saveRDS(stm_merg2, "data/stm_merg2.RDS")
 
 # ---- 5 second level BD  ----
 stm_merg2 <-  readRDS("data/stm_merg2.RDS")
 stm_merg2
+names(stm_merg2)
 rates_list2 <- lapply(stm_merg2, get_branch_rate_across_smaps)
 rates2 <- do.call(cbind, rates_list2)
 colMeans(rates2 == 0)
