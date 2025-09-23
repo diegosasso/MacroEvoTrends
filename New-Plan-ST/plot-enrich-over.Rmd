@@ -36,6 +36,13 @@ stm_merg <-readRDS("data/stm_merg.RDS")
 tree <-readRDS("data/hym_tree.RDS")
 #plot(tree)
 
+#----- placeholder for muscles and sclerites
+stm_merg[16] <- stm_merg[15]
+stm_merg[17] <- stm_merg[15]
+names(stm_merg)[16] <- "sclerites"
+names(stm_merg)[17] <- "muscles"
+#-----------
+
 # branch rate
 rates_list <- lapply(stm_merg, get_branch_rate_across_smaps)
 rates <- do.call(cbind, rates_list)
@@ -50,8 +57,8 @@ tot_states <- lapply(anat_ent_state, function(x) sum(get_len(x)) ) %>% unlist
 
 
 rates_norm <- apply(rates, 1, function(x) x/tot_states) %>% t
-#head(rates_norm)
-#head(rates)
+# head(rates_norm)
+# head(rates)
 ```
 
 # Branch enrichment
@@ -80,7 +87,7 @@ sum(enr.bin > 0)
 # region_class is sourced from the file
 region_class
 enr_class <- enrich_next_level(enr, region_class)
-enr_class <- enr_class[c("head", "mesosoma", "metasoma", "legs",  "wings")]
+enr_class <- enr_class[c("head", "mesosoma", "metasoma", "legs",  "wings", "sclerites", "muscles")]
 head(enr_class)
 #head(enr)
 
@@ -275,25 +282,26 @@ dev.off()
 if (!dir.exists("plots")) dir.create("plots")
 file_base <- "plots/tree_enrich"
 
-# postscript(
-#   file = paste0(file_base, ".eps"),
-#   width = 7,          # width in inches (adjust for column width)
-#   height = 9,         # height in inches
-#   horizontal = FALSE, # portrait orientation
-#   onefile = FALSE,    # one figure per file
-#   paper = "special"   # use exact width/height
-# )
-
-png(
-  file = paste0(file_base, ".png"),
-  width = 15, height = 9, units = "in", res = 300
+postscript(
+  file = paste0(file_base, ".eps"),
+  width = 20,          # width in inches (adjust for column width)
+  height = 9.5,         # height in inches
+  horizontal = FALSE, # portrait orientation
+  onefile = FALSE,    # one figure per file
+  paper = "special"   # use exact width/height
 )
+
+
+# png(
+#   file = paste0(file_base, ".png"),
+#   width = 20, height = 9.5, units = "in", res = 300
+# )
 
 # ==========================
 # Plot tree and color branches
 # ==========================
 branch_colors <- ifelse(enr.boolean == 1, "#2ca02c", "black")
-branch_widths <- ifelse(enr.boolean == 1, 4, 1.8)  # thicker if enriched
+branch_widths <- ifelse(enr.boolean == 1, 6, 2.0)  # thicker if enriched
 
 
 plot(tree, edge.color = branch_colors, show.tip.label = TRUE, 
@@ -305,9 +313,13 @@ plot(tree, edge.color = branch_colors, show.tip.label = TRUE,
 
 lastPP <- get("last_plot.phylo", envir = .PlotPhyloEnv)
 
+
+
 # Tip coordinates
 tip_y <- lastPP$yy[1:Ntip(tree)]
 tip_x <- max(lastPP$xx)
+
+
 
 # ---- Square sizes ----
 dy <- median(diff(sort(tip_y)))
@@ -322,11 +334,11 @@ y_per_inch <- yrange / pin[2]
 box_size_x <- box_size_y * (x_per_inch / y_per_inch)
 
 # ---- Gap between tree and heatmap ----
-gap <- 0.005 * max(lastPP$xx)
+gap <- 0.025 * max(lastPP$xx)
 
 # ---- Define groups of columns ----
 # Example: 3 groups 1:2, 3:8, 9:15
-groups <- list(1:2, 3:8, 9:10, 11:13, 14:15)
+groups <- list(1:2, 3:8, 9:10, 11:13, 14:15, 16:17)
 
 # Compute group offsets
 gap_size <- box_size_x * 0.4   # adjust for wider/narrower gaps
@@ -401,7 +413,7 @@ for (i in seq_along(bin.enr)) {
     
     rect(xleft, ybottom, xright, ytop,
          col = ifelse(bits[j] == 1, "seagreen3", "white"),
-         border = "black", lwd = 0.5)
+         border = "black", lwd = 1.3)
   }
 }
 

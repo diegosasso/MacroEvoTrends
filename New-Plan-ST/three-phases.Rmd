@@ -39,6 +39,13 @@ stm_merg <-readRDS("data/stm_merg.RDS")
 tree <-readRDS("data/hym_tree.RDS")
 #plot(tree)
 
+# #----- placeholder for muscles and sclerites
+# stm_merg[16] <- stm_merg[15]
+# stm_merg[17] <- stm_merg[15]
+# names(stm_merg)[16] <- "sclerites"
+# names(stm_merg)[17] <- "muscles"
+# #-----------
+
 # branch rate
 rates_list <- lapply(stm_merg, get_branch_rate_across_smaps)
 rates <- do.call(cbind, rates_list)
@@ -53,8 +60,8 @@ tot_states <- lapply(anat_ent_state, function(x) sum(get_len(x)) ) %>% unlist
 
 
 rates_norm <- apply(rates, 1, function(x) x/tot_states) %>% t
-#head(rates_norm)
-#head(rates)
+# head(rates_norm)
+# head(rates)
 ```
 
 # Branch enrichment
@@ -99,6 +106,7 @@ p2 <-plot_enrichment_stacked(tree, enr[,c(3:8)], n_points = 10000)
 p3 <-plot_enrichment_stacked(tree, enr[,c(9:10)], n_points = 1000)
 p4 <-plot_enrichment_stacked(tree, enr[,c(11:13)], n_points = 1000)
 p5 <-plot_enrichment_stacked(tree, enr[,c(14:15)], n_points = 1000)
+
 library(cowplot)
 plot_grid(
   p1, p2, p3, p4, p5,
@@ -120,10 +128,12 @@ p3 <-plot_enrichment_stacked(tree, enr[,c(9:10)], n_points = 1000, denom = "enri
 p4 <-plot_enrichment_stacked(tree, enr[,c(11:13)], n_points = 1000, denom = "enriched")
 p5 <-plot_enrichment_stacked(tree, enr[,c(14:15)], n_points = 1000, denom = "enriched")
 
+p6 <- plot_enrichment_stacked(tree, enr[,c(16), drop=F], n_points = 1000, denom = "enriched")
+p7 <- plot_enrichment_stacked(tree, enr[,c(17), drop=F], n_points = 1000, denom = "enriched")
 
 library(cowplot)
 plot_grid(
-  p1, p2, p3, p4, p5,
+  p1, p2, p3, p4, p5, p6, p7,
   ncol = 1,  # one column → stacked vertically
   align = "v"
 )
@@ -139,9 +149,9 @@ If entropy is applied to one body region it mesuares the proportion of enriched 
 ```{r}
 # plot_enrichment_entropy(tree, enr, type = "Neff_scaled", n_points = 10000)
 # plot_enrichment_entropy(tree, enr[,2, drop=F], type = "Neff_scaled", n_points = 10000)
-p1 <- plot_enrichment_entropy(tree, enr[,1, drop=F], type = "Neff_scaled", n_points = 10000)
+p1 <- plot_enrichment_entropy(tree, enr[,1:2, drop=F], type = "Neff_scaled", n_points = 10000)
 p1$plot
-head(p1$data)
+#head(p1$data)
 ```
 
 ```{r}
@@ -210,31 +220,56 @@ ggplot(all_data_grouped, aes(y = time, x = entropy, fill = region)) +
 
 ```{r}
 
+# ggplot(all_data_grouped, aes(y = time, x = entropy, group = region)) +
+#   geom_area(fill = "#2ca02c", color = "black", size = 0.3,
+#             position = "stack", alpha = 0.9, orientation = "y") +
+#   scale_y_reverse() +
+#   facet_wrap(~ group, ncol = 7, scales = "fixed") +  # fixed scales
+#   coord_fixed(ratio = 1/22, clip = "off") +           # y stretched vs x
+#   theme_minimal(base_size = 14) +
+#   theme(
+#     panel.grid = element_blank(),
+#     axis.line = element_line(color = "black"),
+#     strip.text = element_text(face = "bold", size = 12),
+#     axis.title = element_text(size = 13),
+#     #axis.title.y = element_text(margin = margin(r = 20)),  # move title away from axis
+#     #axis.text.y  = element_text(margin = margin(r = 10)),    # move tick labels away
+#     axis.text = element_text(size = 11),
+#     axis.text.x = element_blank(),
+#     axis.ticks.x = element_blank(),
+#     legend.position = "none",
+#     plot.margin = margin(5, 15, 5, 5), # top, right, bottom, left
+#     panel.spacing.x = unit(0.01, "lines")   # <--- control spacing here
+#   ) +
+#   labs(y = "Time from root (Ma)",
+#        x = "Stacked entropy (Neff_scaled)")
+
 ggplot(all_data_grouped, aes(y = time, x = entropy, group = region)) +
-  geom_area(fill = "#2ca02c", color = "black", size = 0.3,
-            position = "stack", alpha = 0.9, orientation = "y") +
+  geom_area(fill = "#ADD9AB" , color = "black", size = 0.3,
+            position = "stack", alpha = 1, orientation = "y") +
   scale_y_reverse() +
-  facet_wrap(~ group, ncol = 5, scales = "fixed") +  # fixed scales
-  coord_fixed(ratio = 1/22, clip = "off") +           # y stretched vs x
+  scale_x_reverse() +   # <-- flip horizontally (right to left)
+  facet_wrap(~ group, ncol = 7, scales = "fixed") +
+  coord_fixed(ratio = 1/22, clip = "off") +
   theme_minimal(base_size = 14) +
   theme(
     panel.grid = element_blank(),
     axis.line = element_line(color = "black"),
     strip.text = element_text(face = "bold", size = 12),
     axis.title = element_text(size = 13),
-    #axis.title.y = element_text(margin = margin(r = 20)),  # move title away from axis
-    #axis.text.y  = element_text(margin = margin(r = 10)),    # move tick labels away
     axis.text = element_text(size = 11),
     axis.text.x = element_blank(),
     axis.ticks.x = element_blank(),
     legend.position = "none",
-    plot.margin = margin(5, 15, 5, 5), # top, right, bottom, left
-    panel.spacing.x = unit(0.01, "lines")   # <--- control spacing here
+    plot.margin = margin(5, 15, 5, 5),
+    panel.spacing.x = unit(0.01, "lines")
   ) +
   labs(y = "Time from root (Ma)",
        x = "Stacked entropy (Neff_scaled)")
 
-ggsave("plots/entropy-BRs.png", width = 4, height = 8, units = "in")
+
+ggsave("plots/entropy-BRs.png", width = 5.4, height = 9.5, units = "in")
+ggsave("plots/entropy-BRs.eps", width = 5.4, height = 9.5, units = "in")
 ```
 
 # Entropy: Three phases
@@ -269,6 +304,10 @@ df_all$metric_scaled <- with(df_all,
                                     metric_value * scale_factor,
                                     metric_value)
 )
+
+df_sel <- df_all %>%
+  filter(metric %in% c("Neff_scaled_enr", "Strength_scaled_enr"))
+
 ```
 
 
@@ -319,7 +358,7 @@ p <- ggplot(df_all, aes(x = time, y = metric_scaled, color = metric, fill = metr
 
 print(p)
 
-ggsave("plots/three-phases.png", width = 8, height = 4, units = "in")
+ggsave("plots/three-phases-full.png", width = 8, height = 4, units = "in")
 ```
 
 ## Plot 2
@@ -346,13 +385,13 @@ ggplot() +
             fill = "#33a02c", alpha = 0.4) +
   geom_line(data = subset(df_sel, metric == "Neff_scaled_enr"),
             aes(x = time, y = metric_scaled),
-            color = "#006d2c", size = 1.5) +
+            color = "#006d2c", size = 1) +
   
   scale_x_reverse(expand = c(0, 0)) +
   scale_y_continuous(
     expand = c(0, 0),
     name = "Neff (scaled)",
-    sec.axis = sec_axis(~ . / scale_factor, name = "Strength (scaled)")
+    sec.axis = sec_axis(~ . / scale_factor, name = "Strength")
   ) +
   theme_classic(base_size = 14) +
   theme(
@@ -367,39 +406,43 @@ ggplot() +
     panel.grid = element_blank()
   )
 
-ggsave("plots/three-phases.png", width = 8, height = 4, units = "in")
+#ggsave("plots/three-phases.png", width = 8, height = 4, units = "in")
+#ggsave("plots/three-phases.eps", width = 8, height = 4, units = "in")
+ggsave("plots/two-phases.pdf", width = 9.6, height = 2.38, units = "in")
 ```
 ## Plot 3
 
 ```{r}
-
+# "#08306b"
 ggplot() +
   # Neff_dis only
   geom_area(data = subset(df_all, metric == "Neff_scaled_dis"),
             aes(x = time, y = metric_scaled),
-            fill = "#1f78b4", alpha = 0.4) +
+            fill = "#1f78b4", alpha = 0.2) +
   geom_line(data = subset(df_all, metric == "Neff_scaled_dis"),
             aes(x = time, y = metric_scaled),
-            color = "#08306b", size = 1.5) +   # darker outline for contrast
+            color = "#1f78b4", size = 1) +   # darker outline for contrast
   
-  scale_x_reverse(expand = c(0, 0)) +
+  scale_x_continuous(expand = c(0, 0)) +
   scale_y_continuous(
     expand = c(0, 0),
-    name = "Neff (disenrichment, scaled)"
+    name = "Neff (scaled)", position = "right"
   ) +
   theme_classic(base_size = 14) +
   theme(
     axis.ticks.x = element_blank(),
     axis.text.x  = element_blank(),
     axis.title.x = element_blank(),
-    axis.text.y  = element_text( angle = -90,
+    axis.text.y  = element_text( angle = 90,
                                 vjust = -0.5, hjust = 0.5),
+    #axis.line.y.left  = element_line(color = "black"), # keep axis line
     #axis.title.y = element_text(color = "#08306b"),
     legend.position = "none",
     panel.grid = element_blank()
   )
 
-ggsave("plots/neff_dis.png", width = 8, height = 4, units = "in")
+#ggsave("plots/neff_dis.png", width = 8, height = 4, units = "in")
+ggsave("plots/neff_dis.pdf", width = 9.6, height = 2.38, units = "in")
 ```
 
 # Deep time
@@ -519,11 +562,185 @@ lines(div.time, div*70, col='red')
 
 plot(div, neff)
 abline(lm(neff ~ div), col = "red", lwd = 2)
+
 summary(lm(neff ~ div))
 cor.test(neff, div, method = "pearson")
 
 ```
-## sampling from pyrate plot
+## Plot Neff vs Div
+
+```{r}
+
+
+# Example data
+df_corr <- data.frame(
+  div = div,
+  neff = neff
+)
+
+# Compute min, mid, max for both axes
+x_breaks <- c(min(df_corr$div, na.rm = TRUE),
+              mean(range(df_corr$div, na.rm = TRUE)),
+              max(df_corr$div, na.rm = TRUE))
+
+y_breaks <- c(min(df_corr$neff, na.rm = TRUE),
+              mean(range(df_corr$neff, na.rm = TRUE)),
+              max(df_corr$neff, na.rm = TRUE))
+
+# Plot
+p <- ggplot(df_corr, aes(x = div, y = neff)) +
+  geom_point(size = 2, color = "black", alpha = 0.7) +
+  geom_smooth(method = "lm", se = FALSE, color = "red", size = 2) +
+  scale_x_continuous(breaks = x_breaks,
+                     labels = round(x_breaks, 2)) +
+  scale_y_continuous(breaks = y_breaks,
+                     labels = round(y_breaks, 2)) +
+  theme_classic(base_size = 14) +
+  theme(
+    panel.border = element_rect(color = "black", fill = NA, linewidth = 0.6),
+    axis.line = element_line(color = "black", size = 0.6),
+    axis.ticks = element_line(color = "black", size = 0.6),
+    axis.text = element_text(color = "black"),
+    panel.grid = element_blank()
+  ) +
+  labs(
+    x = "Net diversification",
+    y = "Neff"
+  )
+
+p
+
+ggsave("plots/Neff_vs_div.pdf", p, width = 3, height = 3, dpi = 300, units = "in")
+```
+
+
+## Plot Neff, diversification, and rates
+
+```{r}
+
+Neff <- plot_enrichment_entropy(tree, enr, type = "Neff_scaled", n_points = 1000)$data
+
+# dataframe for entropy curve
+df_entropy <- data.frame(
+  time = Neff $time,
+  entropy = Neff$entropy
+)
+
+# dataframe for di
+df_div <- data.frame(
+  time = div.time,
+  di = div
+)
+
+ggplot() +
+  # entropy curve (dense line)
+  geom_line(data = df_entropy, aes(x = time, y = entropy, color = "Neff_scaled"), size = 1) +
+  
+  # di curve (line + points at sparse time steps)
+  geom_line(data = df_div, aes(x = time, y = div / max(div, na.rm = TRUE) * max(df_entropy$entropy, na.rm = TRUE),
+                              color = "div"), size = 1) +
+  geom_point(data = df_div, aes(x = time, y = div / max(div, na.rm = TRUE) * max(df_entropy$entropy, na.rm = TRUE),
+                               color = "div"), size = 2) +
+  
+  scale_y_continuous(
+    name = "Neff_scaled",
+    sec.axis = sec_axis(~ . * max(div, na.rm = TRUE) / max(df_entropy$entropy, na.rm = TRUE),
+                        name = "div")
+  ) +
+  scale_color_manual(values = c("Neff_scaled" = "blue", "di" = "red")) +
+  scale_x_reverse() +
+  theme_minimal(base_size = 14) +
+  theme(
+    legend.position = "top",
+    axis.title.y.left  = element_text(color = "blue"),
+    axis.title.y.right = element_text(color = "red")
+  ) +
+  labs(x = "Time from root (Ma)", color = "Metric")
+```
+## Plot 2: Neff, diversification, and rates
+
+```{r}
+# "#33a02c" "#006d2c"
+
+# Scale diversification to Neff range for plotting
+# scale_factor <- max(df_entropy$entropy, na.rm = TRUE) / max(df_div$di, na.rm = TRUE)
+# df_div$di_scaled <- df_div$di * scale_factor + .7
+
+scale_factor <- max(df_entropy$entropy, na.rm = TRUE) / max(df_div$di, na.rm = TRUE)
+offset <- 0.7   # how far above 0 you want the curve
+df_div$di_scaled <- df_div$di * scale_factor + offset
+
+
+
+
+# add labels directly to your data
+df_entropy$metric <- "Neff"
+df_div$metric <- "Net diversification"
+
+p <- ggplot() +
+      # Background strips
+  # geom_rect(data = strip_df,
+  #           aes(xmin = xmin, xmax = xmax, ymin = ymin, ymax = ymax),
+  #           fill = "grey90", alpha = 0.5) +
+  # Neff: filled area + solid line
+  # Neff: filled area + solid line
+  geom_area(data = df_entropy, aes(x = time, y = entropy, fill = metric),
+            alpha = 0.4, fill = "#33a02c", show.legend = FALSE) + # area doesn't need legend
+  geom_line(data = df_entropy, aes(x = time, y = entropy, color = metric),
+            size = 1.2) +
+  
+  # Diversification: dashed line
+  geom_line(data = df_div, aes(x = time, y = di_scaled, color = metric),
+            size = 1.9, linetype = "solid") +
+  
+  # Geological bar
+  coord_geo(
+    dat = "periods",
+    pos = "bottom",
+    size = 3,
+    expand = FALSE,
+    height = unit(0.25, "cm"),
+    lab = FALSE
+  ) +
+  
+  # Axes
+  scale_x_reverse(expand = c(0, 0),
+                  breaks = seq(0, 300, 50)) +
+  scale_y_continuous(
+    name = "Neff", 
+    expand = c(0, 0),
+    limits = c(0, 4.5),
+    sec.axis = sec_axis(~ (. - offset) / scale_factor, name = "Net diversification")
+  ) +
+  
+  # Colors for the lines
+  scale_color_manual(
+    values = c("Neff" = "#006d2c", "Net diversification" = "#e66101"),
+    name = NULL
+  ) +
+  
+  # Theme
+  theme_classic(base_size = 14) +
+  theme(
+    legend.position = c(0.95, 0.95),
+    legend.justification = c("right", "top"),
+    legend.background = element_rect(fill = "white", color = NA),
+    legend.key = element_blank(),
+    axis.line = element_line(color = "black"),
+    axis.ticks = element_line(color = "black"),
+    axis.text = element_text(color = "black"),
+    panel.grid = element_blank()
+  ) +
+  labs(x = "Time (Ma)")
+
+p
+
+ggsave("plots/lineage_div.pdf", p, width = 3.5*2, height = 1.6*2, dpi = 300, units = "in")
+
+```
+
+
+## sampling many points from pyrate plot
 
 ```{r}
 # original data
