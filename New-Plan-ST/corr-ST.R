@@ -43,6 +43,7 @@ cor.test(rate_total, tot_states, method = "pearson")
 
 # ====================== Pairwise correlation: 15 body regions (first order) ====================== #
 
+#. !!!! Quantiles should be trimmed AFTER LOG!!!!!!!!!!!
 corr.pearson.log <-run_all_pairwise_correlations_parallel(
   stm_merg,
   #n.samples = 1000,

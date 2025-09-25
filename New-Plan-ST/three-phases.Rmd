@@ -128,12 +128,10 @@ p3 <-plot_enrichment_stacked(tree, enr[,c(9:10)], n_points = 1000, denom = "enri
 p4 <-plot_enrichment_stacked(tree, enr[,c(11:13)], n_points = 1000, denom = "enriched")
 p5 <-plot_enrichment_stacked(tree, enr[,c(14:15)], n_points = 1000, denom = "enriched")
 
-p6 <- plot_enrichment_stacked(tree, enr[,c(16), drop=F], n_points = 1000, denom = "enriched")
-p7 <- plot_enrichment_stacked(tree, enr[,c(17), drop=F], n_points = 1000, denom = "enriched")
 
 library(cowplot)
 plot_grid(
-  p1, p2, p3, p4, p5, p6, p7,
+  p1, p2, p3, p4, p5,
   ncol = 1,  # one column → stacked vertically
   align = "v"
 )
@@ -149,10 +147,165 @@ If entropy is applied to one body region it mesuares the proportion of enriched 
 ```{r}
 # plot_enrichment_entropy(tree, enr, type = "Neff_scaled", n_points = 10000)
 # plot_enrichment_entropy(tree, enr[,2, drop=F], type = "Neff_scaled", n_points = 10000)
-p1 <- plot_enrichment_entropy(tree, enr[,1:2, drop=F], type = "Neff_scaled", n_points = 10000)
-p1$plot
+p1 <- plot_enrichment_entropy(tree, enr[,1:2, drop=F], type = "Neff_scaled", n_points = 1000)
+p2 <- plot_enrichment_entropy(tree, enr[,3:8, drop=F], type = "Neff_scaled", n_points = 1000)
+p3 <- plot_enrichment_entropy(tree, enr[,9:10, drop=F], type = "Neff_scaled", n_points = 1000)
+p4 <- plot_enrichment_entropy(tree, enr[,11:13, drop=F], type = "Neff_scaled", n_points = 1000)
+p5 <- plot_enrichment_entropy(tree, enr[,14:15, drop=F], type = "Neff_scaled", n_points = 1000)
+#p1$plot
 #head(p1$data)
 ```
+
+
+```{r}
+# Add group names
+p1$data$group <- "head"
+p2$data$group <- "mesosoma"
+p3$data$group <- "metasoma"
+p4$data$group <- "legs"
+p5$data$group <- "wings"
+
+# Combine
+df_all <- bind_rows(p1$data, p2$data, p3$data, p4$data, p5$data)
+# Fix facet order
+df_all$group <- factor(df_all$group,
+                       levels = c("head", "mesosoma", "metasoma", "legs", "wings"))
+```
+
+Plot
+
+```{r}
+
+# Plot vertically stacked subplots
+ggplot(df_all, aes(x = time, y = entropy)) +
+  geom_area(fill = "#33a02c", alpha = 0.6) +
+  #geom_line(color = "#006d2c", size = .5) +
+  geom_hline(yintercept = 0, color = "#33a02c", linetype = "solid", size = 0.7, alpha = 0.6) +  # <-- here
+  scale_x_reverse(
+    breaks = seq(0, max(df_all$time), by = 50),
+    expand = c(0, 0)
+  ) +
+  scale_y_continuous(
+    #expand = c(0, 0)
+  ) +
+  facet_wrap(~ group, ncol = 1, scales = "free_y") +
+  theme_classic(base_size = 14) +
+  theme(
+    #strip.text = element_text(face = "bold", size = 12),
+    strip.text = element_blank(),
+    strip.background = element_blank(),
+    panel.grid = element_blank(),
+    axis.text = element_text(color = "black"),
+    axis.text.y = element_blank(),     # remove y labels
+    axis.ticks.y = element_blank(),    # remove y ticks
+    axis.title.x = element_blank(),
+    axis.ticks.x = element_line(color = "black"),
+    axis.line = element_line(color = "black"),
+    panel.spacing = unit(0, "lines")   # smaller spacing (increase for more space)
+  ) +
+  labs(y = "Neff (scaled)", x = "Time (Ma)")
+
+ggsave("plots/Neff-BRs.pdf", width = 10, height = 5, units = "in")
+```
+
+## Strength
+```{r}
+s1 <- plot_enrichment_strength(tree, enr[,1:2, drop=F],   type = "not_scaled", n_points = 1000)
+s2 <- plot_enrichment_strength(tree, enr[,3:8, drop=F],   type = "not_scaled", n_points = 1000)
+s3 <- plot_enrichment_strength(tree, enr[,9:10, drop=F],  type = "not_scaled", n_points = 1000)
+s4 <- plot_enrichment_strength(tree, enr[,11:13, drop=F], type = "not_scaled", n_points = 1000)
+s5 <- plot_enrichment_strength(tree, enr[,14:15, drop=F], type = "not_scaled", n_points = 1000)
+# s1$data
+```
+
+## Plot Strength
+
+```{r}
+library(dplyr)
+library(ggplot2)
+
+# --- Prepare data
+# Entropy = Neff
+p1$data$group <- "head"
+p2$data$group <- "mesosoma"
+p3$data$group <- "metasoma"
+p4$data$group <- "legs"
+p5$data$group <- "wings"
+
+# Strength
+s1$data$group <- "head"
+s2$data$group <- "mesosoma"
+s3$data$group <- "metasoma"
+s4$data$group <- "legs"
+s5$data$group <- "wings"
+
+df_entropy <- bind_rows(p1$data, p2$data, p3$data, p4$data, p5$data) %>%
+  mutate(type = "neff")
+
+df_strength <- bind_rows(s1$data, s2$data, s3$data, s4$data, s5$data) %>%
+  rename(entropy = strength) %>%
+  mutate(type = "strength")
+
+df_all <- bind_rows(df_entropy, df_strength) %>%
+  mutate(group = factor(group, levels = c("head", "mesosoma", "metasoma", "legs", "wings")))
+
+
+# --- Plot
+ggplot() +
+    geom_area(data = filter(df_all, type == "strength"),
+            aes(x = time, y = entropy),
+            fill = "#e31a1c", alpha = .2) +
+
+  # Strength (red line)
+  geom_line(data = filter(df_all, type == "strength"),
+            aes(x = time, y = entropy),
+            color = "#e31a1c", size = .2, , alpha = 1) +
+  
+  # Neff (green fill area)
+    geom_area(data = filter(df_all, type == "neff"),
+            aes(x = time, y = entropy),
+            fill = 'white', alpha = 1) +
+  
+  geom_area(data = filter(df_all, type == "neff"),
+            aes(x = time, y = entropy),
+            fill = "#33a02c", alpha = .4) +
+  
+  geom_line(data = filter(df_all, type == "neff"),
+            aes(x = time, y = entropy),
+            color = "#006d2c", size = .2, linetype = 1, alpha = 1) +
+              
+  geom_hline(yintercept = 0, color = "#006d2c",
+             linetype = "dashed", size = 0.7, alpha = 1) +
+  
+
+
+  scale_x_reverse(
+    breaks = seq(0, max(df_all$time), by = 50),
+    expand = c(0, 0)
+  ) +
+  scale_y_continuous() +
+
+  facet_wrap(~ group, ncol = 1, scales = "free_y") +
+
+  theme_classic(base_size = 14) +
+  theme(
+    strip.text = element_blank(),
+    strip.background = element_blank(),
+    panel.grid = element_blank(),
+    axis.text = element_text(color = "black"),
+    axis.text.y = element_blank(),
+    axis.ticks.y = element_blank(),
+    axis.title.x = element_blank(),
+    axis.ticks.x = element_line(color = "black"),
+    axis.line = element_line(color = "black"),
+    panel.spacing = unit(0, "lines")
+  ) +
+  labs(y = "Neff (green, scaled) / Strength (red)", x = "Time (Ma)")
+
+ggsave("plots/Neff-S-BRs.pdf", width = 10, height = 5, units = "in")
+```
+
+
 
 ```{r}
 all_data <- data.frame()
@@ -268,8 +421,8 @@ ggplot(all_data_grouped, aes(y = time, x = entropy, group = region)) +
        x = "Stacked entropy (Neff_scaled)")
 
 
-ggsave("plots/entropy-BRs.png", width = 5.4, height = 9.5, units = "in")
-ggsave("plots/entropy-BRs.eps", width = 5.4, height = 9.5, units = "in")
+#ggsave("plots/entropy-BRs.png", width = 5.4, height = 9.5, units = "in")
+#ggsave("plots/entropy-BRs.eps", width = 5.4, height = 9.5, units = "in")
 ```
 
 # Entropy: Three phases
@@ -360,6 +513,80 @@ print(p)
 
 ggsave("plots/three-phases-full.png", width = 8, height = 4, units = "in")
 ```
+
+# Rolling corr vs. metric
+
+## read in df_avg
+
+```{r}
+# !!! remeber to updated df_avg !!!
+df_avg <- readRDS('data/df_avg.rds')
+head(df_avg)
+```
+
+```{r}
+# First, make a scaled version of mean_cor to match the left y-axis
+df_avg$mean_cor_scaled <- df_avg$mean_cor * max(df_all$metric_scaled, na.rm = TRUE)
+
+# Plot
+p <- ggplot() +
+  # --- df_all metrics (Neff + Strength) ---
+  geom_line(data = df_all, aes(x = time, y = metric_scaled, color = metric), size = 1) +
+  geom_area(data = df_all, aes(x = time, y = metric_scaled, fill = metric),
+            alpha = 0.2, position = "identity") +
+  
+  # --- Overlay df_avg (mean correlation) ---
+  geom_line(data = df_avg, aes(x = time, y = mean_cor_scaled),
+            color = "black", size = 1.2, linetype = "solid") +
+  
+  # Axes
+  scale_x_reverse(
+    expand = c(0, 0),
+    breaks = seq(0, max(df_all$time, na.rm = TRUE), by = 50)
+  ) +
+  scale_y_continuous(
+    name = "Neff_scaled",
+    expand = c(0, 0),
+    sec.axis = sec_axis(~ . / max(df_all$metric_scaled, na.rm = TRUE),
+                        name = "Mean correlation (black dashed)")
+  ) +
+  
+  # Colors
+  scale_color_manual(
+    values = c("Neff_scaled_dis" = "#1f78b4",
+               "Neff_scaled_enr" = "#33a02c",
+               "Strength_scaled_enr" = "#e31a1c")
+  ) +
+  scale_fill_manual(
+    values = c("Neff_scaled_dis" = "#1f78b4",
+               "Neff_scaled_enr" = "#33a02c",
+               "Strength_scaled_enr" = "#e31a1c")
+  ) +
+  
+  # Theme
+  theme_classic(base_size = 14) +
+  theme(
+    axis.line = element_line(color = "black", size = 0.6),
+    axis.ticks = element_line(color = "black", size = 0.6),
+    axis.text = element_text(color = "black"),
+    legend.title = element_blank(),
+    legend.position = "top",
+    legend.box = "horizontal",
+    panel.grid = element_blank()
+  ) +
+  
+  # Geological bar
+  coord_geo(
+    dat = "periods",
+    pos = "bottom",
+    size = 3
+  ) +
+  
+  labs(x = "Time (Ma)")
+
+print(p)
+```
+
 
 ## Plot 2
 

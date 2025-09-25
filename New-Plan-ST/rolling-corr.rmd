@@ -1,0 +1,548 @@
+---
+title: "Rolling correlation"
+date: "`r Sys.Date()`"
+output: 
+  html_document:
+    df_print: paged
+---
+
+
+
+```{r setup, include=F}
+
+library(ape)
+library(phytools)
+library(ontophylo)
+library(dplyr)
+library(parallel)
+library(viridis)
+library(ggplot2)
+library(deeptime)
+library(mgcv)
+source("R/utils-ST.R")
+source('R/region_class.R')
+
+
+knitr::opts_chunk$set(
+  echo = TRUE,       # show code by default
+  warning = FALSE,
+  message = FALSE
+)
+```
+
+
+
+
+# Read and Make Data
+
+```{r}
+
+stm_merg <-readRDS("data/stm_merg.RDS")
+tree <-readRDS("data/hym_tree.RDS")
+#plot(tree)
+
+# branch rate
+rates_list <- lapply(stm_merg, get_branch_rate_across_smaps)
+rates <- do.call(cbind, rates_list)
+# head(rates)
+# rate_total <- apply(rates, 2, sum)
+# rate_total
+
+
+rate_whole_branch <- apply(rates, 1, sum)
+
+# tot states per BR
+#load('data/char_num.RDA')
+#tot_states <- lapply(anat_ent_state, function(x) sum(get_len(x)) ) %>% unlist
+#tot_states
+
+
+#rates_norm <- apply(rates, 1, function(x) x/tot_states) %>% t
+# head(rates_norm)
+# head(rates)
+```
+
+# Prepare data
+
+```{r}
+edge_times <- edge_times_from_tips(tree)
+head(edge_times)
+count_branches_sliding(edge_times, window_size = 40, step_size = 1, plot = TRUE)
+```
+
+# Run rolling window correlation
+```{r}
+
+cor_results <- rolling_rate_correlation(rates, edge_times,
+                                        window_size = 40, 
+                                        step_size = 1,
+                                        trim_quantiles = NULL,  
+                                        log_transform = TRUE,
+                                        use.abs.value=TRUE)
+```
+
+# Convert correlation
+```{r}
+df_cor <- cor_list_to_df(cor_results)
+head(df_cor)
+
+
+df_avg <- df_cor %>%
+  group_by(time) %>%
+  summarize(
+    median_cor = median(cor, na.rm = TRUE),
+    mean_cor = mean(cor, na.rm = TRUE),
+    se = sd(cor, na.rm = TRUE) / sqrt(n()),
+    sd = sd(cor, na.rm = TRUE),
+    q25 = quantile(cor, 0.25, na.rm = TRUE),
+    q75 = quantile(cor, 0.75, na.rm = TRUE)
+  )
+head(df_avg)
+saveRDS(df_avg,'data/df_avg.rds')
+```
+
+# Plot rolling corr
+
+```{r}
+ggplot(df_avg, aes(x = time, y = median_cor)) +
+  geom_line(color = "black") +
+  geom_ribbon(aes(ymin = q25, ymax = q75),
+              alpha = 0.2, fill = "grey") +
+  scale_x_reverse(
+    breaks = seq(0, 300, by = 25),
+    expand = c(0, 0)
+  ) +
+  theme_classic() +
+  labs(y = "Median pairwise correlation", x = "Time (Ma)")
+```
+
+## Bar Plot
+
+```{r, fig.height=15, fig.width=6}
+ggplot(df_cor, aes(x = factor(time), y = cor)) +
+  geom_boxplot(outlier.size = 0.5, fill = "grey80", color = "black") +
+  scale_x_discrete(labels = function(x) paste0(x, " Ma")) +
+  coord_flip() + # optional: flip for readability
+  theme_classic(base_size = 14) +
+  labs(y = "Pairwise correlation", x = "Time slice")
+```
+
+## GAM
+
+```{r}
+# Fit GAM
+gam_fit <- gam(median_cor ~ s(time), data = df_avg)
+summary(gam_fit)
+```
+
+
+```{r}
+
+# Predict from GAM with CI
+pred <- predict(gam_fit, newdata = data.frame(time = df_avg$time),
+                se.fit = TRUE)
+
+df_pred <- data.frame(
+  time = df_avg$time,
+  fit = pred$fit,
+  lower = pred$fit - 2 * pred$se.fit,  # ~95% CI
+  upper = pred$fit + 2 * pred$se.fit
+)
+
+# Plot
+ggplot() +
+  # raw rolling correlations
+  geom_point(data = df_avg, aes(x = time, y = mean_cor),
+             color = "grey50", size = 2, alpha = 0.6) +
+  
+  # GAM confidence ribbon
+  geom_ribbon(data = df_pred, aes(x = time, ymin = lower, ymax = upper),
+              fill = "#a6cee3", alpha = 0.4) +
+  
+  # GAM smooth line
+  geom_line(data = df_pred, aes(x = time, y = fit),
+            color = "#1f78b4", size = 1.2) +
+  
+  scale_x_reverse(expand = c(0,0)) +   # time decreasing to the right
+  labs(x = "Time from root (Ma)",
+       y = "Mean pairwise correlation") +
+  theme_classic(base_size = 14) +
+  theme(
+    axis.line = element_line(color = "black"),
+    axis.ticks = element_line(color = "black"),
+    axis.text = element_text(color = "black")
+  )
+
+```
+
+
+
+# Sensitivity to time bins
+
+```{r}
+cor_results1 <- rolling_rate_correlation(rates, edge_times,
+                                        window_size = 20, 
+                                        step_size = 10,
+                                        trim_quantiles = NULL,  
+                                        log_transform = TRUE,
+                                        use.abs.value=TRUE)
+cor_results2 <- rolling_rate_correlation(rates, edge_times,
+                                        window_size = 40, 
+                                        step_size = 10,
+                                        trim_quantiles = NULL,  
+                                        log_transform = TRUE,
+                                        use.abs.value=TRUE)
+cor_results3 <- rolling_rate_correlation(rates, edge_times,
+                                        window_size = 60, 
+                                        step_size = 10,
+                                        trim_quantiles = NULL,  
+                                        log_transform = TRUE,
+                                        use.abs.value=TRUE)
+
+cor_results4 <- rolling_rate_correlation(rates, edge_times,
+                                        window_size = 100, 
+                                        step_size = 10,
+                                        trim_quantiles = NULL,  
+                                        log_transform = TRUE,
+                                        use.abs.value=TRUE)
+
+df_cor1 <- cor_list_to_df(cor_results1)
+df_cor2 <- cor_list_to_df(cor_results2)
+df_cor3 <- cor_list_to_df(cor_results3)
+df_cor4 <- cor_list_to_df(cor_results4)
+```
+
+```{r, fig.height=10, fig.width=6}
+# Add labels for window size
+df_cor1$window <- "20 Myr"
+df_cor2$window <- "40 Myr"
+df_cor3$window <- "60 Myr"
+df_cor4$window <- "100 Myr"
+
+# Combine into one dataframe
+df_all <- bind_rows(df_cor1, df_cor2, df_cor3, df_cor4)
+
+# Plot faceted boxplots
+ggplot(df_all, aes(x = factor(time), y = cor)) +
+  geom_boxplot(outlier.size = 0.4, fill = "grey80", color = "black") +
+  scale_x_discrete(labels = function(x) paste0(x, " Ma")) +
+  coord_flip() +
+  facet_wrap(~ window, ncol = 1, scales = "free_y") +  # stacked vertically
+  theme_classic(base_size = 14) +
+  theme(
+    strip.text = element_text(face = "bold"),
+    axis.text.y = element_text(size = 7)
+  ) +
+  labs(y = "Pairwise correlation", x = "Time slice")
+
+ggsave("plots/rolling-win-sensitivity.pdf",   width = 6, height = 10)
+```
+
+
+# Plot rolling corr: BRs
+
+```{r}
+
+
+# Join correlation data with region_class twice (for region1 and region2)
+df_cor_grouped <- df_cor %>%
+  left_join(region_class, by = c("region1" = "region")) %>%
+  rename(group1 = group) %>%
+  left_join(region_class, by = c("region2" = "region")) %>%
+  rename(group2 = group)
+
+# Keep only within-group pairs
+df_within <- df_cor_grouped %>%
+  filter(group1 == group2)
+
+# Compute rolling/average correlation per composite group
+df_group_avg <- df_within %>%
+  group_by(time, group1) %>%
+  summarize(
+    mean_cor = mean(cor, na.rm = TRUE),
+    .groups = "drop"
+  )
+
+ggplot(df_group_avg, aes(x = time, y = mean_cor, color = group1)) +
+  geom_line(size = 1) +
+  scale_x_reverse(
+    breaks = seq(0, 300, by = 25),
+    expand = c(0, 0)
+  ) +
+  facet_wrap(~ group1, ncol = 1, scales = "free_y") +  # 1 column, vertical stacking
+  theme_classic(base_size = 14) +
+  theme(
+    strip.text = element_text(face = "bold"),
+    legend.position = "none",   # remove redundant legend
+    panel.grid = element_blank()
+  ) +
+  labs(
+    y = "Mean within-group correlation",
+    x = "Time (Ma)"
+  )
+```
+# Plot 2
+## data
+```{r}
+# Summarize by group1 (composite region) and time
+df_group_quant <- df_cor %>%
+  left_join(region_class, by = c("region1" = "region")) %>%
+  rename(group1 = group) %>%
+  filter(region2 %in% region_class$region) %>%
+  left_join(region_class, by = c("region2" = "region")) %>%
+  rename(group2 = group) %>%
+  filter(group1 == group2) %>%   # only within-group correlations
+  group_by(group1, time) %>%
+  summarize(
+    median_cor = median(cor, na.rm = TRUE),
+    q25 = quantile(cor, 0.25, na.rm = TRUE),
+    q75 = quantile(cor, 0.75, na.rm = TRUE),
+    .groups = "drop"
+  )
+
+df_group_quant$group1 <- factor(
+  df_group_quant$group1,
+  levels = c("head", "mesosoma", "metasoma", "legs", "wings")
+)
+
+```
+
+## plot
+```{r}
+
+
+# Define range of x-axis
+xmax_1 <- 280
+xmin_1 <- 0
+interval <- 50
+
+# Build strip dataframe
+strip_df <- tibble(
+  xmin = seq(from = xmin_1, to = xmax_1 - interval, by = interval),
+  xmax = seq(from = xmin_1 + interval, to = xmax_1, by = interval),
+  ymin = -Inf,
+  ymax = Inf
+) %>%
+  mutate(fill = rep(c("grey95", "white"), length.out = nrow(.)))
+
+pp <- ggplot(df_group_quant, aes(x = time, y = median_cor)) +
+  # #------ background strips
+  # geom_rect(
+  #   data = strip_df,
+  #   aes(xmin = xmin, xmax = xmax, ymin = ymin, ymax = ymax, fill = fill),
+  #   inherit.aes = FALSE,    # prevents using main data
+  #   show.legend = FALSE     # removes unwanted legend
+  # ) +
+  #  scale_fill_identity() +   # interpret fill as actual colors, not mapped values
+  # #------
+  geom_line(color = "black") +
+  geom_hline(yintercept = 0.5, linetype = "dashed", color = "grey40", size = 0.5) +
+  geom_ribbon(aes(ymin = q25, ymax = q75),
+              alpha = 0.5, fill = "grey") +
+  
+  # y-axis setup
+  scale_y_continuous(
+    limits = c(0, 1),
+    breaks = c(0, 0.5, 1),
+    expand = c(0, 0)
+  ) +
+  scale_x_reverse(
+    breaks = seq(0, 280, by = 50),
+    expand = c(0, 0)
+  ) +
+  # geological time scale instead of plain x
+  coord_geo(
+    dat = "periods",     # you can also try "epochs" or "stages"
+    pos = "bottom",
+    size = 3,            # label size
+    expand = FALSE,
+    xlim = c(280, 0),    # reverse time
+    height = unit(0.35, "cm") # thinner bar
+  ) +
+  
+  facet_wrap(~ group1, ncol = 1, scales = "free_y") +
+  theme_classic(base_size = 14) +
+  theme(
+    strip.text = element_text(face = "bold"),
+    strip.background = element_blank(),
+    panel.grid = element_blank(),
+    axis.text.y = element_text(size = 8),
+    axis.text.x = element_text(size = 8), # adjust font for ages
+    panel.spacing = unit(0, "lines")   # smaller spacing (increase for more space)
+  ) +
+  labs(y = NULL, x = "Time (Ma)")
+
+print(pp)
+ggsave("plots/rolling_cor-BRs.pdf", pp, width = 9, height = 4, dpi = 300, units = "in")
+```
+
+# GAM composite BRs
+
+## GAM per group
+
+```{r}
+library(tidyr)
+library(purrr)
+
+# Fit a GAM per group: median_cor ~ s(time)
+gam_fits <- df_group_quant %>%
+  group_split(group1) %>%
+  map_df(function(dd) {
+    fit <- gam(median_cor ~ s(time, k = 10), data = dd, family = gaussian())
+    sm  <- summary(fit)
+    tibble(
+      group1    = unique(dd$group1),
+      edf       = sm$s.table[1, "edf"],
+      F         = sm$s.table[1, "F"],
+      p_value   = sm$s.table[1, "p-value"],
+      dev_expl  = sm$dev.expl               # proportion of deviance explained
+    )
+  })
+
+# Print a tidy significance table
+gam_fits %>%
+  mutate(p_value = signif(p_value, 3),
+         edf = round(edf, 2),
+         F   = round(F, 2),
+         dev_expl = scales::percent(dev_expl, accuracy = 0.1)) %>%
+  arrange(group1) %>%
+  print(n = Inf)
+```
+## Plot GAM + median
+
+```{r, fig.height=10, fig.width=6}
+library(grid)  # for unit()
+
+# Define range of x-axis for strips (if you want to keep them later)
+xmax_1   <- 280
+xmin_1   <- 0
+
+pp <- ggplot(df_group_quant, aes(x = time, y = median_cor)) +
+  # central tendency + IQR band
+  geom_line(color = "black") +
+  geom_hline(yintercept = 0.5, linetype = "dashed",
+             color = "grey40", size = 0.5) +
+  geom_ribbon(aes(ymin = q25, ymax = q75),
+              alpha = 0.5, fill = "grey") +
+  
+  # GAM smooth per panel (no CI ribbon)
+  geom_smooth(method = "gam",
+              formula = y ~ s(x, k = 10),
+              se = FALSE, color = "#1f78b4", size = 0.9) +
+
+  # y-axis
+  scale_y_continuous(
+    limits = c(0, 1),
+    breaks = c(0, 0.5, 1),
+    expand = c(0, 0)
+  ) +
+
+  # x-axis with deeptime geologic bar
+  coord_geo(
+    dat = "periods",
+    pos = "bottom",
+    size = 3,
+    expand = FALSE,
+    xlim = c(xmax_1, xmin_1),
+    height = unit(0.35, "cm")
+  ) +
+  scale_x_reverse(breaks = seq(0, xmax_1, by = 50), expand = c(0, 0)) +
+
+  facet_wrap(~ group1, ncol = 1, scales = "free_y") +
+  theme_classic(base_size = 14) +
+  theme(
+    strip.text = element_text(face = "bold"),
+    strip.background = element_blank(),
+    panel.grid = element_blank(),
+    axis.text.y = element_text(size = 8),
+    axis.text.x = element_text(size = 8),
+    panel.spacing = unit(0, "lines")
+  ) +
+  labs(y = NULL, x = "Time (Ma)")
+
+print(pp)
+```
+
+
+## Plot GAM 
+
+```{r}
+library(dplyr)
+library(mgcv)
+library(tidyr)
+library(purrr)
+
+# Fit GAM per group and get predictions with CI
+df_pred <- df_group_quant %>%
+  group_split(group1) %>%
+  map_df(function(dd) {
+    fit <- gam(median_cor ~ s(time, k = 10), data = dd, family = gaussian())
+    # predict with CI
+    pred <- predict(fit, newdata = dd, se.fit = TRUE)
+    tibble(
+      group1 = unique(dd$group1),
+      time   = dd$time,
+      fit    = pred$fit,
+      lower  = pred$fit - 1.96 * pred$se.fit,
+      upper  = pred$fit + 1.96 * pred$se.fit
+    )
+  })
+
+# Plot
+pp <- ggplot() +
+  # observed rolling medians as points
+  # geom_point(data = df_group_quant,
+  #            aes(x = time, y = median_cor),
+  #            color = "grey50", size = 1.8, alpha = 0.6) +
+  
+    geom_hline(yintercept = 0.5, linetype = "dashed",
+             color = "grey40", size = 0.5) +
+
+  # GAM confidence ribbon
+  geom_ribbon(data = df_pred,
+              aes(x = time, ymin = lower, ymax = upper),
+              fill = "#a6cee3", alpha = 0.4) +
+
+  # GAM smooth line
+  geom_line(data = df_pred,
+            aes(x = time, y = fit),
+            color = "#1f78b4", size = 1.2) +
+
+  # y-axis
+  scale_y_continuous(
+    limits = c(0, 1),
+    breaks = c(0, 0.5, 1),
+    expand = c(0, 0)
+  ) +
+
+  # x-axis with deeptime bar
+  coord_geo(
+    dat = "periods",
+    pos = "bottom",
+    size = 3,
+    expand = FALSE,
+    xlim = c(280, 0),
+    height = unit(0.35, "cm")
+  ) +
+  scale_x_reverse(
+    breaks = seq(0, 280, by = 50),
+    expand = c(0, 0)
+  ) +
+
+  facet_wrap(~ group1, ncol = 1, scales = "free_y") +
+  theme_classic(base_size = 14) +
+  theme(
+    strip.text = element_text(face = "bold"),
+    strip.background = element_blank(),
+    panel.grid = element_blank(),
+    axis.text.y = element_text(size = 8),
+    axis.text.x = element_text(size = 8),
+    panel.spacing = unit(0, "lines")
+  ) +
+  labs(y = NULL, x = "Time (Ma)")
+
+print(pp)
+```
+
+
+

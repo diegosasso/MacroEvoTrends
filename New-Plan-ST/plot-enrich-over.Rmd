@@ -36,12 +36,12 @@ stm_merg <-readRDS("data/stm_merg.RDS")
 tree <-readRDS("data/hym_tree.RDS")
 #plot(tree)
 
-#----- placeholder for muscles and sclerites
-stm_merg[16] <- stm_merg[15]
-stm_merg[17] <- stm_merg[15]
-names(stm_merg)[16] <- "sclerites"
-names(stm_merg)[17] <- "muscles"
-#-----------
+# #----- placeholder for muscles and sclerites
+# stm_merg[16] <- stm_merg[15]
+# stm_merg[17] <- stm_merg[15]
+# names(stm_merg)[16] <- "sclerites"
+# names(stm_merg)[17] <- "muscles"
+# #-----------
 
 # branch rate
 rates_list <- lapply(stm_merg, get_branch_rate_across_smaps)
